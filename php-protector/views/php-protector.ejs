@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PHP Protector</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <div class="container" id="main-container">
+    <a href="/" class="back-link">← Back to Dashboard</a>
+
+    <header>
+      <div class="logo-pill">SECURE ENGINE</div>
+      <h1>PHP <span>Protector</span></h1>
+      <p class="subtitle">Obfuscate PHP code while maintaining directory structure.</p>
+    </header>
+
+    <!-- Mode Tabs -->
+    <div class="mode-tabs">
+        <div class="mode-tab active" data-mode="bulk">Bulk Folder</div>
+        <div class="mode-tab" data-mode="single">Single File</div>
+    </div>
+
+    <!-- Drop zone -->
+    <div id="dropzone" class="dropzone">
+      <div class="drop-icon">🛡️</div>
+      <p class="drop-title">Drop your project folder here</p>
+      <p class="drop-sub">PHP files will be obfuscated and returned as ZIP.</p>
+      <label class="browse-btn">
+        Browse project
+        <input type="file" id="folder-input" webkitdirectory multiple>
+      </label>
+    </div>
+
+    <div id="stats" class="stats hidden">
+      <div class="stat-card">
+        <div class="stat-val" id="stat-total">0</div>
+        <div class="stat-label">PHP Files detected</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">READY</div>
+        <div class="stat-label">Status</div>
+      </div>
+    </div>
+
+    <div id="progress-wrap" class="progress-wrap hidden">
+      <div class="progress-label">
+        <span id="progress-text">Securing your code...</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <div id="download-wrap" class="download-wrap hidden">
+      <div class="done-message">Protection complete!</div>
+      <button id="download-btn" class="download-btn">Download Archive (.zip)</button>
+      <button id="reset-btn" class="reset-btn">Protect more</button>
+    </div>
+
+  </div>
+
+  <script>window.toolEndpoint = '/upload';</script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/tool-runner.js"></script>
+</body>
+</html>

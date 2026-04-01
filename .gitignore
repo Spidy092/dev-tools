@@ -1,0 +1,9 @@
+node_modules/
+vendor/
+.env
+*.zip
+*.pdf
+.DS_Store
+.idea/
+.vscode/
+php-protector/node_modules/
