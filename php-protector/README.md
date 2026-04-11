@@ -25,6 +25,8 @@
     npm install
     ```
 
+For a full runtime and troubleshooting guide, see [OPERATIONS.md](OPERATIONS.md).
+
 ---
 
 ## 🖥️ Usage Modes

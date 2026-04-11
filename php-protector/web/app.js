@@ -5,7 +5,8 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const DEFAULT_PORT = Number(process.env.PORT) || 3000;
+const MAX_PORT_RETRIES = process.env.PORT ? 0 : 10;
 
 // 🔥 Security and Performance Middleware
 app.use(helmet({
@@ -44,6 +45,21 @@ app.use('/', require('./routes/php-tools'));
 app.use('/image-tools', require('./routes/image-tools'));
 app.use('/pdf-tools', require('./routes/pdf-tools'));
 
-app.listen(PORT, () => {
-  console.log(`Developer Tools running at http://localhost:${PORT}`);
-});
+function startServer(port, retriesLeft = MAX_PORT_RETRIES) {
+  const server = app.listen(port, () => {
+    console.log(`Developer Tools running at http://localhost:${port}`);
+  });
+
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE' && retriesLeft > 0) {
+      console.warn(`Port ${port} is in use, retrying on ${port + 1}`);
+      startServer(port + 1, retriesLeft - 1);
+      return;
+    }
+
+    console.error('Failed to start server:', error.message);
+    process.exit(1);
+  });
+}
+
+startServer(DEFAULT_PORT);
