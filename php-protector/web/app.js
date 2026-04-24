@@ -39,11 +39,15 @@ app.get('/php-protector', (req, res) => res.render('php-protector'));
 app.get('/image-resizer', (req, res) => res.render('image-resizer'));
 app.get('/image-converter', (req, res) => res.render('image-converter'));
 app.get('/pdf-compressor', (req, res) => res.render('pdf-compressor'));
+app.get('/file-renamer', (req, res) => res.render('file-renamer'));
+app.get('/code-minifier', (req, res) => res.render('code-minifier'));
 
 // API Routes
 app.use('/', require('./routes/php-tools'));
 app.use('/image-tools', require('./routes/image-tools'));
 app.use('/pdf-tools', require('./routes/pdf-tools'));
+app.use('/file-tools', require('./routes/file-tools'));
+app.use('/minify-tools', require('./routes/minify-tools'));
 
 function startServer(port, retriesLeft = MAX_PORT_RETRIES) {
   const server = app.listen(port, () => {

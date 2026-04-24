@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Minifier</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <div class="container" id="main-container">
+    <a href="/" class="back-link">← Back to Dashboard</a>
+
+    <header>
+      <div class="logo-pill">PERFORMANCE ENGINE</div>
+      <h1>Code <span>Minifier</span></h1>
+      <p class="subtitle">Aggressively compress HTML, CSS, and JS recursively.</p>
+    </header>
+
+    <!-- Mode Tabs -->
+    <div class="mode-tabs">
+        <div class="mode-tab active" data-mode="bulk">Bulk Folder</div>
+        <div class="mode-tab" data-mode="single">Single File</div>
+    </div>
+
+    <!-- Options Section -->
+    <div id="options-panel">
+        <div class="stats" style="grid-template-columns: 1fr; margin-bottom: 20px;">
+            <div class="stat-card" style="text-align: left;">
+                <label style="font-weight: 600; margin-bottom: 15px; display: block;">Select Targets</label>
+                <div class="feature-grid">
+                    <label class="feature-opt">
+                        <input type="checkbox" id="minifyHtml" checked>
+                        <span>Minify HTML</span>
+                    </label>
+                    <label class="feature-opt">
+                        <input type="checkbox" id="minifyCss" checked>
+                        <span>Minify CSS</span>
+                    </label>
+                    <label class="feature-opt">
+                        <input type="checkbox" id="minifyJs" checked>
+                        <span>Minify Javascript</span>
+                    </label>
+                </div>
+                <p style="font-size: 11px; margin-top: 10px; color: var(--text-2);">Non-selected files (e.g. Images, Markdown) will be kept entirely intact in your output zip to preserve project structure.</p>
+            </div>
+        </div>
+
+        <div class="stat-card" style="margin-bottom: 24px; text-align: left;">
+            <label style="font-weight: 600; margin-bottom: 15px; display: block;">Javascript Advanced Settings</label>
+            <div class="feature-grid">
+                <label class="feature-opt">
+                    <input type="checkbox" id="mangleVariables" checked>
+                    <span>Mangle Variable Names (Aggressive Compression)</span>
+                </label>
+                <label class="feature-opt">
+                    <input type="checkbox" id="preserveComments">
+                    <span>Preserve Comments (Block stripping)</span>
+                </label>
+                <label class="feature-opt">
+                    <input type="checkbox" id="renamePatternToggle" onclick="document.getElementById('renamePattern').disabled = !this.checked">
+                    <span>Rename Output</span>
+                    <input type="text" id="renamePattern" placeholder="{name}.min" style="width: 150px; margin-left: auto;" disabled>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drop zone -->
+    <div id="dropzone" class="dropzone">
+      <div class="drop-icon">⚡</div>
+      <p class="drop-title">Drop your codebase here</p>
+      <p class="drop-sub">The project will be minified and boxed back into a ZIP.</p>
+      <label class="browse-btn">
+        Browse project
+        <input type="file" id="folder-input" webkitdirectory multiple>
+      </label>
+    </div>
+
+    <div id="stats" class="stats hidden">
+      <div class="stat-card">
+        <div class="stat-val" id="stat-total">0</div>
+        <div class="stat-label">Files queued</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">READY</div>
+        <div class="stat-label">Status</div>
+      </div>
+    </div>
+
+    <div id="progress-wrap" class="progress-wrap hidden">
+      <div class="progress-label">
+        <span id="progress-text">Minifying code...</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <div id="download-wrap" class="download-wrap hidden">
+      <div class="done-message">Minification complete!</div>
+      <button id="download-btn" class="download-btn">Download Archive (.zip)</button>
+      <button id="reset-btn" class="reset-btn">Minify more</button>
+    </div>
+
+  </div>
+
+  <script>window.toolEndpoint = '/minify-tools/minify';</script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/tool-runner.js"></script>
+</body>
+</html>

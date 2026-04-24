@@ -10,14 +10,17 @@
   "dependencies": {
     "archiver": "^7.0.1",
     "chalk": "^4.1.2",
+    "clean-css": "^5.3.3",
     "commander": "^11.1.0",
     "compression": "^1.8.1",
     "ejs": "^3.1.9",
     "express": "^4.18.2",
     "express-rate-limit": "^8.3.1",
     "helmet": "^8.1.0",
+    "html-minifier-terser": "^7.2.0",
     "multer": "^2.1.1",
     "node-cron": "^4.2.1",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "terser": "^5.46.1"
   }
 }

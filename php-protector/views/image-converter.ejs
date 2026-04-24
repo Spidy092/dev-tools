@@ -27,7 +27,7 @@
     <div id="options-panel">
         <div class="stats" style="grid-template-columns: 1fr; margin-bottom: 24px;">
             <div class="stat-card">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
                     <div class="form-group">
                         <label>Target Format</label>
                         <select id="targetFormat">
@@ -40,6 +40,10 @@
                     <div class="form-group">
                         <label>Quality (1-100)</label>
                         <input type="number" id="quality" value="80" min="1" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Rename Pattern</label>
+                        <input type="text" id="renamePattern" placeholder="e.g. {name}_{index}">
                     </div>
                 </div>
             </div>

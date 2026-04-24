@@ -22,7 +22,7 @@ async function handleProcessResponse(res, files, paths, processor, jobId, rename
             const relativePath = normalizedPaths[0] || file.originalname;
             const fileBuffer = fs.readFileSync(file.path);
             const processedBuffer = await processor(fileBuffer, relativePath);
-            const outName = renamer ? renamer(relativePath) : relativePath;
+            const outName = renamer ? renamer(relativePath, 0) : relativePath;
             
             res.setHeader('Content-Disposition', `attachment; filename="${outName}"`);
             // Set basic content type based on extension
@@ -48,18 +48,40 @@ async function handleProcessResponse(res, files, paths, processor, jobId, rename
 
     try {
         const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.gif'];
+        const usedNames = new Set();
+
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             let relativePath = normalizedPaths[i] || file.originalname;
             const ext = path.extname(relativePath).toLowerCase();
             const fileBuffer = fs.readFileSync(file.path);
 
+            let finalPath;
             if (imageExtensions.includes(ext)) {
                 const processedBuffer = await processor(fileBuffer, relativePath);
-                const outPath = renamer ? renamer(relativePath) : relativePath;
-                archive.append(processedBuffer, { name: outPath });
+                let outPath = renamer ? renamer(relativePath, i) : relativePath;
+                
+                finalPath = outPath;
+                let counter = 1;
+                while (usedNames.has(finalPath)) {
+                    const parsedPath = path.parse(outPath);
+                    finalPath = (parsedPath.dir ? parsedPath.dir + '/' : '') + parsedPath.name + '-' + counter + parsedPath.ext;
+                    counter++;
+                }
+                usedNames.add(finalPath);
+                
+                archive.append(processedBuffer, { name: finalPath });
             } else {
-                archive.append(fileBuffer, { name: relativePath });
+                finalPath = relativePath;
+                let counter = 1;
+                while (usedNames.has(finalPath)) {
+                    const parsedPath = path.parse(relativePath);
+                    finalPath = (parsedPath.dir ? parsedPath.dir + '/' : '') + parsedPath.name + '-' + counter + parsedPath.ext;
+                    counter++;
+                }
+                usedNames.add(finalPath);
+                
+                archive.append(fileBuffer, { name: finalPath });
             }
         }
         archive.finalize();
@@ -71,7 +93,7 @@ async function handleProcessResponse(res, files, paths, processor, jobId, rename
 
 // POST /image/resize
 router.post('/resize', upload.array('files'), (req, res) => {
-    const { width, height, fit, background, grayscale, blur, negate, sharpen } = req.body;
+    const { width, height, fit, background, grayscale, blur, negate, sharpen, renamePattern } = req.body;
     const files = req.files;
     const paths = req.body.paths;
     const jobId = (files && files.length > 0) ? files[0].destination.split('/').pop() : null;
@@ -80,12 +102,17 @@ router.post('/resize', upload.array('files'), (req, res) => {
 
     handleProcessResponse(res, files, paths, async (buffer) => {
         return resizeImage(buffer, { width, height, fit, background, grayscale, blur, negate, sharpen });
-    }, jobId);
+    }, jobId, (relativePath, index) => {
+        if (!renamePattern) return relativePath;
+        const parsed = path.parse(relativePath);
+        const newName = renamePattern.replace(/{name}/g, parsed.name).replace(/{index}/g, index + 1);
+        return (parsed.dir ? parsed.dir + '/' : '') + newName + parsed.ext;
+    });
 });
 
 // POST /image/convert
 router.post('/convert', upload.array('files'), (req, res) => {
-    const { quality, targetFormat, grayscale, blur, negate, sharpen } = req.body;
+    const { quality, targetFormat, grayscale, blur, negate, sharpen, renamePattern } = req.body;
     const files = req.files;
     const paths = req.body.paths;
     const jobId = (files && files.length > 0) ? files[0].destination.split('/').pop() : null;
@@ -94,9 +121,11 @@ router.post('/convert', upload.array('files'), (req, res) => {
 
     handleProcessResponse(res, files, paths, async (buffer) => {
         return convertImage(buffer, { quality, format: targetFormat, grayscale, blur, negate, sharpen });
-    }, jobId, (relativePath) => {
+    }, jobId, (relativePath, index) => {
         const ext = targetFormat || 'webp';
-        return relativePath.replace(/\.[^/.]+$/, "") + "." + ext;
+        const parsed = path.parse(relativePath);
+        const newName = renamePattern ? renamePattern.replace(/{name}/g, parsed.name).replace(/{index}/g, index + 1) : parsed.name;
+        return (parsed.dir ? parsed.dir + '/' : '') + newName + "." + ext;
     });
 });
 
