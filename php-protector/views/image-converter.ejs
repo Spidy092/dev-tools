@@ -1,108 +1,71 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Image Converter</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <%- include('partials/head', { title: 'Image Converter' }) %>
 </head>
 <body>
-
   <div class="container" id="main-container">
-    <a href="/" class="back-link">← Back to Dashboard</a>
+    <%- include('partials/header', { pill: 'UNIVERSAL TOOL', h1Left: 'Image', h1Right: 'Converter', subtitle: 'Convert with smart structure preservation.' }) %>
 
-    <header>
-      <div class="logo-pill">UNIVERSAL TOOL</div>
-      <h1>Image <span>Converter</span></h1>
-      <p class="subtitle">Convert with smart structure preservation.</p>
-    </header>
-
-    <!-- Mode Tabs -->
     <div class="mode-tabs">
-        <div class="mode-tab active" data-mode="bulk" id="bulk-tab">Bulk Folder</div>
-        <div class="mode-tab" data-mode="single" id="single-tab">Single File</div>
+      <div class="mode-tab active" data-mode="bulk">Bulk Folder</div>
+      <div class="mode-tab" data-mode="single">Multiple Files</div>
     </div>
 
-    <!-- Options Section -->
     <div id="options-panel">
-        <div class="stats" style="grid-template-columns: 1fr; margin-bottom: 24px;">
-            <div class="stat-card">
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
-                    <div class="form-group">
-                        <label>Target Format</label>
-                        <select id="targetFormat">
-                            <option value="webp">WebP (Optimized)</option>
-                            <option value="jpeg">JPEG (Standard)</option>
-                            <option value="png">PNG (Lossless)</option>
-                            <option value="avif">AVIF (Next-Gen)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Quality (1-100)</label>
-                        <input type="number" id="quality" value="80" min="1" max="100">
-                    </div>
-                    <div class="form-group">
-                        <label>Rename Pattern</label>
-                        <input type="text" id="renamePattern" placeholder="e.g. {name}_{index}">
-                    </div>
-                </div>
+      <div class="stats" style="grid-template-columns:1fr;margin-bottom:24px">
+        <div class="stat-card">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+            <div class="form-group"><label>Target Format</label>
+              <select id="targetFormat">
+                <option value="webp">WebP (Optimized)</option>
+                <option value="jpeg">JPEG (Standard)</option>
+                <option value="png">PNG (Lossless)</option>
+                <option value="avif">AVIF (Next-Gen)</option>
+              </select>
             </div>
-            
-            <div class="stat-card" style="text-align: left; margin-top: 20px;">
-                <label style="font-weight: 600; margin-bottom: 15px; display: block;">Advanced Filters</label>
-                <div class="feature-grid">
-                    <label class="feature-opt">
-                        <input type="checkbox" id="grayscale">
-                        <span>Grayscale</span>
-                    </label>
-                    <label class="feature-opt">
-                        <input type="checkbox" id="sharpen">
-                        <span>Sharpen</span>
-                    </label>
-                    <label class="feature-opt">
-                        <input type="checkbox" id="negate">
-                        <span>Invert</span>
-                    </label>
-                    <label class="feature-opt">
-                        <input type="checkbox" id="blur-toggle" onclick="document.getElementById('blur').disabled = !this.checked">
-                        <span>Blur</span>
-                        <input type="number" id="blur" value="0.3" step="0.1" min="0" max="10" style="width: 50px; margin-left: auto;" disabled>
-                    </label>
-                </div>
-            </div>
+            <div class="form-group"><label>Quality (1-100)</label><input type="number" id="quality" value="80" min="1" max="100"></div>
+            <div class="form-group"><label>Rename Pattern</label><input type="text" id="renamePattern" placeholder="e.g. {name}_{index}"></div>
+          </div>
         </div>
+        <div class="stat-card" style="text-align:left;margin-top:20px">
+          <label style="font-weight:600;margin-bottom:15px;display:block">Advanced Filters</label>
+          <div class="feature-grid">
+            <label class="feature-opt"><input type="checkbox" id="grayscale"><span>Grayscale</span></label>
+            <label class="feature-opt"><input type="checkbox" id="sharpen"><span>Sharpen</span></label>
+            <label class="feature-opt"><input type="checkbox" id="negate"><span>Invert</span></label>
+            <label class="feature-opt"><input type="checkbox" id="blur-toggle" onclick="document.getElementById('blur').disabled=!this.checked"><span>Blur</span><input type="number" id="blur" value="0.3" step="0.1" min="0" max="10" style="width:50px;margin-left:auto" disabled></label>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Drop zone -->
     <div id="dropzone" class="dropzone">
       <div class="drop-icon">🔄</div>
       <p class="drop-title">Drop your folder here</p>
       <p class="drop-sub">Images will be converted to the selected format.</p>
-      <label class="browse-btn">
-        Browse project
-        <input type="file" id="folder-input" webkitdirectory multiple>
-      </label>
+      <label class="browse-btn">Browse project<input type="file" id="folder-input" webkitdirectory></label>
+    </div>
+
+    <div id="file-tree-panel" class="hidden">
+      <div class="form-group"><label>Exclude patterns</label><input type="text" id="exclude-patterns" class="exclude-input" placeholder="e.g. thumbs/*, *.ico"></div>
+      <div id="file-tree" class="file-tree-wrap"></div>
+      <button id="proceed-btn" class="browse-btn" style="margin-top:12px;width:100%;text-align:center">Process Files</button>
     </div>
 
     <div id="stats" class="stats hidden">
-      <div class="stat-card">
-        <div class="stat-val" id="stat-total">0</div>
-        <div class="stat-label">Files queued</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-val">READY</div>
-        <div class="stat-label">Status</div>
-      </div>
+      <div class="stat-card"><div class="stat-val" id="stat-total">0</div><div class="stat-label">Files queued</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-done">0</div><div class="stat-label">Processed</div></div>
     </div>
 
     <div id="progress-wrap" class="progress-wrap hidden">
-      <div class="progress-label">
-        <span id="progress-text">Converting pixels...</span>
-        <span id="progress-pct">0%</span>
-      </div>
-      <div class="progress-track">
-        <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
-      </div>
+      <div class="progress-label"><span id="progress-text">Converting pixels...</span><span id="progress-pct">0%</span></div>
+      <div class="progress-track"><div id="progress-bar" class="progress-bar" style="width:0%"></div></div>
+    </div>
+
+    <div id="log-wrap" class="log-wrap hidden">
+      <div class="log-header"><span class="log-dot"></span> Live Processing Log</div>
+      <div id="log" class="log"></div>
     </div>
 
     <div id="download-wrap" class="download-wrap hidden">
@@ -110,11 +73,9 @@
       <button id="download-btn" class="download-btn">Download Archive (.zip)</button>
       <button id="reset-btn" class="reset-btn">Convert more</button>
     </div>
-
   </div>
 
-  <script>window.toolEndpoint = '/image-tools/convert';</script>
-  <script src="/js/utils.js"></script>
-  <script src="/js/tool-runner.js"></script>
+  <script nonce="<%= locals.nonce || '' %>">window.toolEndpoint = '/image-tools/convert';</script>
+  <%- include('partials/footer') %>
 </body>
 </html>

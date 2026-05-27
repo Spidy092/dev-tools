@@ -1,0 +1,25 @@
+<nav class="topnav">
+  <a href="/" class="topnav-brand">Dev<span>Toolkit</span></a>
+  <div class="topnav-links">
+    <a href="/php-protector" class="topnav-link" title="PHP Protector" aria-label="PHP Protector">🛡️</a>
+    <a href="/image-resizer" class="topnav-link" title="Image Resizer" aria-label="Image Resizer">📐</a>
+    <a href="/image-converter" class="topnav-link" title="Image Converter" aria-label="Image Converter">🔄</a>
+    <a href="/pdf-compressor" class="topnav-link" title="PDF Compressor" aria-label="PDF Compressor">📄</a>
+    <a href="/file-renamer" class="topnav-link" title="File Renamer" aria-label="File Renamer">🏷️</a>
+    <a href="/code-minifier" class="topnav-link" title="Code Minifier" aria-label="Code Minifier">⚡</a>
+  </div>
+  <div class="topnav-actions">
+    <button class="topnav-cmd" onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true}))" title="Search tools (Ctrl+K)">⌘K</button>
+  </div>
+</nav>
+
+<div class="page-header">
+  <nav class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <span class="current"><%= typeof h1Left !== 'undefined' ? h1Left + ' ' + (typeof h1Right !== 'undefined' ? h1Right : '') : 'Tool' %></span>
+  </nav>
+  <div class="logo-pill"><%= typeof pill !== 'undefined' ? pill : 'ENGINE' %></div>
+  <h1><%= typeof h1Left !== 'undefined' ? h1Left : '' %> <span><%= typeof h1Right !== 'undefined' ? h1Right : '' %></span></h1>
+  <p class="subtitle"><%= typeof subtitle !== 'undefined' ? subtitle : '' %></p>
+</div>

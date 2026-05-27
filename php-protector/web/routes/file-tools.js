@@ -6,7 +6,7 @@ const fs = require('fs');
 const { upload, cleanupJob } = require('../multer-setup');
 
 // POST /file-tools/rename
-router.post('/rename', upload.array('files'), (req, res) => {
+router.post('/rename', upload.array('files'), async (req, res) => {
     const { casing, separator, strictClean, collapseHyphens, organizeByExtension, renamePattern } = req.body;
     const files = req.files;
     const paths = req.body.paths;
@@ -55,6 +55,9 @@ router.post('/rename', upload.array('files'), (req, res) => {
         return base;
     };
 
+    // Quick heuristic to see if user had nested dirs
+    const currentModeIsProbablyNotRecursive = normalizedPaths.every(p => p.indexOf('/') === -1);
+
     const renamer = (relativePath, index) => {
         let parsed = path.parse(relativePath);
         let nameToUse = parsed.name; // Keep as original by default
@@ -92,14 +95,11 @@ router.post('/rename', upload.array('files'), (req, res) => {
         return finalPath;
     };
     
-    // Quick heuristic to see if user had nested dirs
-    const currentModeIsProbablyNotRecursive = normalizedPaths.every(p => p.indexOf('/') === -1);
-
     if (isSingle) {
         try {
             const file = files[0];
             const relativePath = normalizedPaths[0] || file.originalname;
-            const fileBuffer = fs.readFileSync(file.path);
+            const fileBuffer = await fs.promises.readFile(file.path);
             let outName = renamer(relativePath, 0);
 
             // Removing directory parts just in case organizeByExtension added it for single 
@@ -130,7 +130,7 @@ router.post('/rename', upload.array('files'), (req, res) => {
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             let relativePath = normalizedPaths[i] || file.originalname;
-            const fileBuffer = fs.readFileSync(file.path);
+            const fileBuffer = await fs.promises.readFile(file.path);
 
             // In bulk, if organizeByExtension is on, we flatten original dirs if required.
             if (organizeByExtension === 'true') {

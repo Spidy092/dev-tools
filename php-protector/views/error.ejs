@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'Error' }) %>
+  <style>
+    .error-container { text-align: center; padding: 80px 20px; }
+    .error-code { font-size: 6rem; font-weight: 800; color: #a78bfa; line-height: 1; }
+    .error-msg { font-size: 18px; color: #6b6b80; margin: 16px 0 32px; }
+    .error-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .error-btn {
+      padding: 12px 28px; border-radius: 10px; font-size: 14px; font-weight: 600;
+      cursor: pointer; text-decoration: none; transition: opacity .15s;
+    }
+    .error-btn-primary { background: #7c5cfc; color: #fff; border: none; }
+    .error-btn-secondary { background: transparent; color: #6b6b80; border: 1px solid #2e2e42; }
+    .error-btn:hover { opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="error-container">
+      <div class="error-code"><%= typeof code !== 'undefined' ? code : '500' %></div>
+      <h1><%= typeof heading !== 'undefined' ? heading : 'Something went wrong' %></h1>
+      <p class="error-msg"><%= typeof message !== 'undefined' ? message : 'An unexpected error occurred. Please try again.' %></p>
+      <div class="error-actions">
+        <button class="error-btn error-btn-primary" onclick="location.reload()">Retry</button>
+        <a href="/" class="error-btn error-btn-secondary">Back to Dashboard</a>
+      </div>
+    </div>
+  </div>
+  <%- include('partials/footer') %>
+</body>
+</html>

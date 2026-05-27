@@ -34,6 +34,17 @@ function readEntry(entry, basePath = '') {
   });
 }
 
+// Read dropped folder via DataTransfer API
+async function readDroppedFolder(items) {
+  const entries = [];
+  for (let i = 0; i < items.length; i++) {
+    const entry = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+    if (entry) entries.push(entry);
+  }
+  const results = await Promise.all(entries.map(e => readEntry(e)));
+  return results.flat();
+}
+
 // Global UI utility for updating progress
 function updateProgress(pct) {
   const progressBar = document.getElementById('progress-bar');

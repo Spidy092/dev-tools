@@ -1,0 +1,23 @@
+<div class="toast-container" id="toast-container"></div>
+
+<script src="/js/toast.js"></script>
+<script src="/js/theme.js"></script>
+<script src="/js/shortcuts.js"></script>
+<script src="/js/cmd-palette.js"></script>
+<script nonce="<%= locals.nonce || '' %>">
+// Lazy-load tool scripts
+(function() {
+  var nonce = '<%= locals.nonce || "" %>';
+  var scripts = ['/js/utils.js', '/js/settings.js', '/js/virtual-tree.js', '/js/tool-runner.js'];
+  function load(i) {
+    if (i >= scripts.length) return;
+    var s = document.createElement('script');
+    s.src = scripts[i];
+    if (nonce) s.setAttribute('nonce', nonce);
+    s.onload = function() { load(i + 1); };
+    document.body.appendChild(s);
+  }
+  if (window.requestIdleCallback) requestIdleCallback(function() { load(0); });
+  else setTimeout(function() { load(0); }, 0);
+})();
+</script>

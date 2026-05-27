@@ -1,73 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PDF Compressor</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <%- include('partials/head', { title: 'PDF Compressor' }) %>
 </head>
 <body>
-
   <div class="container" id="main-container">
-    <a href="/" class="back-link">← Back to Dashboard</a>
+    <%- include('partials/header', { pill: 'GHOSTSCRIPT ENGINE', h1Left: 'PDF', h1Right: 'Compressor', subtitle: 'Shrink PDF file sizes recursively with zero structure loss.' }) %>
 
-    <header>
-      <div class="logo-pill">Ghostscript Engine</div>
-      <h1>PDF <span>Compressor</span></h1>
-      <p class="subtitle">Shrink PDF file sizes recursively with zero structure loss.</p>
-    </header>
-
-    <!-- Mode Tabs -->
     <div class="mode-tabs">
-        <div class="mode-tab active" data-mode="bulk">Bulk Folder</div>
-        <div class="mode-tab" data-mode="single">Single File</div>
+      <div class="mode-tab active" data-mode="bulk">Bulk Folder</div>
+      <div class="mode-tab" data-mode="single">Multiple Files</div>
     </div>
 
-    <!-- Options Section -->
-    <div id="options-panel" class="stats" style="grid-template-columns: 1fr; margin-bottom: 24px;">
-        <div class="stat-card">
-            <div class="form-group">
-                <label>Compression Level</label>
-                <select id="pdfLevel">
-                    <option value="/screen" selected>Minimum Size (72 dpi, screen)</option>
-                    <option value="/ebook">Medium Quality (150 dpi, ebook)</option>
-                    <option value="/printer">Print Quality (300 dpi, print)</option>
-                    <option value="/prepress">Max Quality (300 dpi, high-fi)</option>
-                </select>
-            </div>
+    <div id="options-panel" class="stats" style="grid-template-columns:1fr;margin-bottom:24px">
+      <div class="stat-card">
+        <div class="form-group"><label>Compression Level</label>
+          <select id="pdfLevel">
+            <option value="/screen" selected>Minimum Size (72 dpi, screen)</option>
+            <option value="/ebook">Medium Quality (150 dpi, ebook)</option>
+            <option value="/printer">Print Quality (300 dpi, print)</option>
+            <option value="/prepress">Max Quality (300 dpi, high-fi)</option>
+          </select>
         </div>
+      </div>
     </div>
 
-    <!-- Drop zone -->
     <div id="dropzone" class="dropzone">
       <div class="drop-icon">📄</div>
       <p class="drop-title">Drop your PDF folder here</p>
       <p class="drop-sub">PDFs will be optimized and returned in a structured ZIP.</p>
-      <label class="browse-btn">
-        Browse project
-        <input type="file" id="folder-input" webkitdirectory multiple>
-      </label>
+      <label class="browse-btn">Browse project<input type="file" id="folder-input" webkitdirectory></label>
+    </div>
+
+    <div id="file-tree-panel" class="hidden">
+      <div class="form-group"><label>Exclude patterns</label><input type="text" id="exclude-patterns" class="exclude-input" placeholder="e.g. archive/*, draft_*"></div>
+      <div id="file-tree" class="file-tree-wrap"></div>
+      <button id="proceed-btn" class="browse-btn" style="margin-top:12px;width:100%;text-align:center">Process Files</button>
     </div>
 
     <div id="stats" class="stats hidden">
-      <div class="stat-card">
-        <div class="stat-val" id="stat-total">0</div>
-        <div class="stat-label">PDFs queued</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-val">WAITING</div>
-        <div class="stat-label">Status</div>
-      </div>
+      <div class="stat-card"><div class="stat-val" id="stat-total">0</div><div class="stat-label">PDFs queued</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-done">0</div><div class="stat-label">Processed</div></div>
     </div>
 
     <div id="progress-wrap" class="progress-wrap hidden">
-      <div class="progress-label">
-        <span id="progress-text">Compressing via Ghostscript...</span>
-        <span id="progress-pct">0%</span>
-      </div>
-      <div class="progress-track">
-        <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
-      </div>
+      <div class="progress-label"><span id="progress-text">Compressing via Ghostscript...</span><span id="progress-pct">0%</span></div>
+      <div class="progress-track"><div id="progress-bar" class="progress-bar" style="width:0%"></div></div>
+    </div>
+
+    <div id="log-wrap" class="log-wrap hidden">
+      <div class="log-header"><span class="log-dot"></span> Live Processing Log</div>
+      <div id="log" class="log"></div>
     </div>
 
     <div id="download-wrap" class="download-wrap hidden">
@@ -75,11 +58,9 @@
       <button id="download-btn" class="download-btn">Download Archive (.zip)</button>
       <button id="reset-btn" class="reset-btn">Compress more</button>
     </div>
-
   </div>
 
-  <script>window.toolEndpoint = '/pdf-tools/compress';</script>
-  <script src="/js/utils.js"></script>
-  <script src="/js/tool-runner.js"></script>
+  <script nonce="<%= locals.nonce || '' %>">window.toolEndpoint = '/pdf-tools/compress';</script>
+  <%- include('partials/footer') %>
 </body>
 </html>

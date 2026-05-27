@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'Settings' }) %>
+  <style>
+    .settings-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+    .settings-section h3 { font-size: 16px; margin-bottom: 16px; color: var(--accent); }
+    .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-label { font-size: 14px; color: var(--text); }
+    .setting-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .setting-control select, .setting-control input[type="number"] {
+      background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 12px; color: var(--text); font-size: 13px; outline: none;
+    }
+    .setting-control select:focus, .setting-control input:focus { border-color: var(--primary); }
+    .save-settings-btn {
+      background: var(--primary); color: #fff; border: none; border-radius: 10px;
+      padding: 12px 32px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 16px;
+    }
+    .save-settings-btn:hover { opacity: 0.85; }
+    .reset-defaults-btn {
+      background: transparent; color: var(--text-muted); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 20px; font-size: 13px; cursor: pointer; margin-left: 12px;
+    }
+    .reset-defaults-btn:hover { border-color: #6b6b80; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <%- include('partials/header', { pill: 'PREFERENCES', h1Left: 'User', h1Right: 'Settings', subtitle: 'Configure default preferences for all tools.' }) %>
+
+    <div class="settings-section">
+      <h3>Image Tools</h3>
+      <div class="setting-row">
+        <div><div class="setting-label">Default Output Format</div><div class="setting-desc">Format used when converting images</div></div>
+        <div class="setting-control"><select id="s-imgFormat"><option value="webp">WebP</option><option value="jpeg">JPEG</option><option value="png">PNG</option><option value="avif">AVIF</option></select></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Default Quality</div><div class="setting-desc">Compression quality (1-100)</div></div>
+        <div class="setting-control"><input type="number" id="s-imgQuality" value="80" min="1" max="100"></div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>PDF Compressor</h3>
+      <div class="setting-row">
+        <div><div class="setting-label">Compression Level</div><div class="setting-desc">Ghostscript quality preset</div></div>
+        <div class="setting-control"><select id="s-pdfLevel"><option value="screen">Screen (smallest)</option><option value="ebook">eBook (balanced)</option><option value="printer">Printer (high quality)</option><option value="prepress">Prepress (max quality)</option></select></div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Code Minifier</h3>
+      <div class="setting-row">
+        <div><div class="setting-label">Mangle Variables</div><div class="setting-desc">Shorten variable names in JS</div></div>
+        <div class="setting-control"><select id="s-mangle"><option value="true">Yes</option><option value="false">No</option></select></div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>General</h3>
+      <div class="setting-row">
+        <div><div class="setting-label">Show Onboarding Tour</div><div class="setting-desc">Show tooltips for new users on next visit</div></div>
+        <div class="setting-control"><select id="s-showTour"><option value="true">Yes</option><option value="false">No</option></select></div>
+      </div>
+    </div>
+
+    <div>
+      <button class="save-settings-btn" onclick="Settings.save()">Save Settings</button>
+      <button class="reset-defaults-btn" onclick="Settings.reset()">Reset to Defaults</button>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+  <script src="/js/toast.js"></script>
+  <%- include('partials/footer') %>
+</body>
+</html>

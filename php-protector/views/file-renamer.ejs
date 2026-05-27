@@ -1,107 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart File Renamer</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <%- include('partials/head', { title: 'Smart File Renamer' }) %>
 </head>
 <body>
-
   <div class="container" id="main-container">
-    <a href="/" class="back-link">← Back to Dashboard</a>
+    <%- include('partials/header', { pill: 'UTILITY ENGINE', h1Left: 'Smart', h1Right: 'File Renamer', subtitle: 'Clean, standardize, and rename ANY file type recursively.' }) %>
 
-    <header>
-      <div class="logo-pill">UTILITY ENGINE</div>
-      <h1>Smart <span>File Renamer</span></h1>
-      <p class="subtitle">Clean, standardize, and rename ANY file type recursively.</p>
-    </header>
-
-    <!-- Mode Tabs -->
     <div class="mode-tabs">
-        <div class="mode-tab active" data-mode="bulk">Bulk Folder</div>
-        <div class="mode-tab" data-mode="single">Single File</div>
+      <div class="mode-tab active" data-mode="bulk">Bulk Folder</div>
+      <div class="mode-tab" data-mode="single">Multiple Files</div>
     </div>
 
-    <!-- Options Section -->
     <div id="options-panel">
-        <div class="stats" style="grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-            <div class="stat-card">
-                <div class="form-group">
-                    <label>Casing & Separator rules</label>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <select id="casing">
-                            <option value="lowercase">lowercase</option>
-                            <option value="uppercase">UPPERCASE</option>
-                            <option value="keep">Keep Original</option>
-                        </select>
-                        <select id="separator">
-                            <option value="hyphen">Use Hyphens (-)</option>
-                            <option value="underscore">Use Underscores (_)</option>
-                            <option value="none">Remove all spaces</option>
-                            <option value="keep">Keep spaces/dots</option>
-                        </select>
-                    </div>
-                </div>
+      <div class="stats" style="grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        <div class="stat-card">
+          <div class="form-group"><label>Casing & Separator rules</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <select id="casing">
+                <option value="lowercase">lowercase</option>
+                <option value="uppercase">UPPERCASE</option>
+                <option value="keep">Keep Original</option>
+              </select>
+              <select id="separator">
+                <option value="hyphen">Use Hyphens (-)</option>
+                <option value="underscore">Use Underscores (_)</option>
+                <option value="none">Remove all spaces</option>
+                <option value="keep">Keep spaces/dots</option>
+              </select>
             </div>
-            <div class="stat-card">
-                <div class="form-group">
-                    <label>Rename Pattern (optional)</label>
-                    <input type="text" id="renamePattern" placeholder="e.g. {name}_cleaned_{index}">
-                    <p style="font-size: 11px; margin-top: 5px; color: var(--text-2);">Use {name} for original name and {index} for numbers.</p>
-                </div>
-            </div>
+          </div>
         </div>
-
-        <div class="stat-card" style="margin-bottom: 24px; text-align: left;">
-            <label style="font-weight: 600; margin-bottom: 15px; display: block;">Advanced Settings</label>
-            <div class="feature-grid">
-                <label class="feature-opt">
-                    <input type="checkbox" id="strictClean" checked>
-                    <span>Strict Clean (Remove all special characters)</span>
-                </label>
-                <label class="feature-opt">
-                    <input type="checkbox" id="collapseHyphens" checked>
-                    <span>Collapse repeated separators (e.g. --- to -)</span>
-                </label>
-                <label class="feature-opt">
-                    <input type="checkbox" id="organizeByExtension">
-                    <span>Organize output into folders by extension</span>
-                </label>
-            </div>
+        <div class="stat-card">
+          <div class="form-group"><label>Rename Pattern (optional)</label>
+            <input type="text" id="renamePattern" placeholder="e.g. {name}_cleaned_{index}">
+            <p style="font-size:11px;margin-top:5px;color:#6b6b80">Use {name} for original name and {index} for numbers.</p>
+          </div>
         </div>
+      </div>
+      <div class="stat-card" style="margin-bottom:24px;text-align:left">
+        <label style="font-weight:600;margin-bottom:15px;display:block">Advanced Settings</label>
+        <div class="feature-grid">
+          <label class="feature-opt"><input type="checkbox" id="strictClean" checked><span>Strict Clean (Remove special chars)</span></label>
+          <label class="feature-opt"><input type="checkbox" id="collapseHyphens" checked><span>Collapse repeated separators</span></label>
+          <label class="feature-opt"><input type="checkbox" id="organizeByExtension"><span>Organize by extension</span></label>
+        </div>
+      </div>
     </div>
 
-    <!-- Drop zone -->
     <div id="dropzone" class="dropzone">
       <div class="drop-icon">🏷️</div>
       <p class="drop-title">Drop your folder here</p>
       <p class="drop-sub">Files will be intelligently renamed and returned in a ZIP.</p>
-      <label class="browse-btn">
-        Browse project
-        <input type="file" id="folder-input" webkitdirectory multiple>
-      </label>
+      <label class="browse-btn">Browse project<input type="file" id="folder-input" webkitdirectory></label>
+    </div>
+
+    <div id="file-tree-panel" class="hidden">
+      <div class="form-group"><label>Exclude patterns</label><input type="text" id="exclude-patterns" class="exclude-input" placeholder="e.g. .git/*, *.tmp"></div>
+      <div id="file-tree" class="file-tree-wrap"></div>
+      <button id="proceed-btn" class="browse-btn" style="margin-top:12px;width:100%;text-align:center">Process Files</button>
     </div>
 
     <div id="stats" class="stats hidden">
-      <div class="stat-card">
-        <div class="stat-val" id="stat-total">0</div>
-        <div class="stat-label">Files queued</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-val">READY</div>
-        <div class="stat-label">Status</div>
-      </div>
+      <div class="stat-card"><div class="stat-val" id="stat-total">0</div><div class="stat-label">Files queued</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-done">0</div><div class="stat-label">Processed</div></div>
     </div>
 
     <div id="progress-wrap" class="progress-wrap hidden">
-      <div class="progress-label">
-        <span id="progress-text">Cleaning filenames...</span>
-        <span id="progress-pct">0%</span>
-      </div>
-      <div class="progress-track">
-        <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
-      </div>
+      <div class="progress-label"><span id="progress-text">Cleaning filenames...</span><span id="progress-pct">0%</span></div>
+      <div class="progress-track"><div id="progress-bar" class="progress-bar" style="width:0%"></div></div>
+    </div>
+
+    <div id="log-wrap" class="log-wrap hidden">
+      <div class="log-header"><span class="log-dot"></span> Live Processing Log</div>
+      <div id="log" class="log"></div>
     </div>
 
     <div id="download-wrap" class="download-wrap hidden">
@@ -109,11 +81,9 @@
       <button id="download-btn" class="download-btn">Download Archive (.zip)</button>
       <button id="reset-btn" class="reset-btn">Rename more</button>
     </div>
-
   </div>
 
-  <script>window.toolEndpoint = '/file-tools/rename';</script>
-  <script src="/js/utils.js"></script>
-  <script src="/js/tool-runner.js"></script>
+  <script nonce="<%= locals.nonce || '' %>">window.toolEndpoint = '/file-tools/rename';</script>
+  <%- include('partials/footer') %>
 </body>
 </html>

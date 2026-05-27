@@ -1,70 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Developer Tool Suite</title>
-  <link rel="stylesheet" href="/css/style.css">
-  <style>
-    body { align-items: flex-start; padding-top: 80px; }
-  </style>
+  <%- include('partials/head', { title: 'Developer Tool Suite' }) %>
+  <style>body { align-items: flex-start; justify-content: center; padding-top: 80px; }</style>
 </head>
 <body>
-
-  <div class="container" style="max-width: 1000px; gap: 40px;">
-
-    <header>
-      <h1>Dev<span>Toolkit</span></h1>
-      <p class="subtitle">Multi-purpose tools for developers. Fast, private, and local.</p>
-    </header>
+  <div class="dashboard-container">
+    <%- include('partials/header', { pill: 'DASHBOARD', h1Left: 'Dev', h1Right: 'Toolkit', subtitle: 'Multi-purpose tools for developers. Fast, private, and local.' }) %>
 
     <div class="dashboard">
-      
       <a href="/php-protector" class="tool-card">
         <span class="tag">Security</span>
         <div class="icon">🛡️</div>
         <h2>PHP Protector</h2>
-        <p>Obfuscate PHP projects recursively. Preserve directory structure and encrypt source code with eval/base64.</p>
+        <p>Obfuscate PHP projects recursively. Preserve directory structure and encrypt source code.</p>
       </a>
-
       <a href="/image-resizer" class="tool-card">
         <span class="tag">Images</span>
         <div class="icon">📐</div>
         <h2>Image Resizer</h2>
-        <p>Professional image resizing with support for Cover, Contain, and Inside fitting. Recursive folder processing.</p>
+        <p>Professional image resizing with Cover, Contain, and Inside fitting. Recursive folder processing.</p>
       </a>
-
       <a href="/image-converter" class="tool-card">
         <span class="tag">Optimization</span>
         <div class="icon">🔄</div>
         <h2>Image Converter</h2>
-        <p>Convert and compress images to WebP, JPEG, PNG, or AVIF recursively. Dramatically reduce project asset sizes.</p>
+        <p>Convert images to WebP, JPEG, PNG, or AVIF recursively. Dramatically reduce asset sizes.</p>
       </a>
-
       <a href="/pdf-compressor" class="tool-card">
         <span class="tag">Performance</span>
         <div class="icon">📄</div>
         <h2>PDF Compressor</h2>
-        <p>Shrink large PDF folders with Ghostscript. Multiple quality levels with perfect structure preservation.</p>
+        <p>Shrink large PDF folders with Ghostscript. Multiple quality levels with structure preservation.</p>
       </a>
-
       <a href="/file-renamer" class="tool-card">
         <span class="tag">Utility</span>
         <div class="icon">🏷️</div>
         <h2>Smart File Renamer</h2>
-        <p>Clean and standardize filenames in bulk. Lowercase, replace spaces, strip special characters, and auto-resolve duplicates.</p>
+        <p>Clean and standardize filenames in bulk. Lowercase, replace spaces, strip special characters.</p>
       </a>
-
       <a href="/code-minifier" class="tool-card">
         <span class="tag">Code</span>
         <div class="icon">⚡</div>
         <h2>Code Minifier</h2>
-        <p>Aggressively minify HTML, CSS, and Javascript. Mangle variables and strip whitespace while keeping project structure intact.</p>
+        <p>Aggressively minify HTML, CSS, and Javascript. Mangle variables and strip whitespace.</p>
       </a>
-
     </div>
-
   </div>
-
+  <div class="toast-container" id="toast-container"></div>
+  <script src="/js/toast.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/shortcuts.js"></script>
+  <script src="/js/cmd-palette.js"></script>
+  <script src="/js/settings.js"></script>
+  <script src="/js/tour.js"></script>
 </body>
 </html>

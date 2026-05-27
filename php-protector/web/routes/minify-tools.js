@@ -101,7 +101,7 @@ router.post('/minify', upload.array('files'), async (req, res) => {
         try {
             const file = files[0];
             const relativePath = normalizedPaths[0] || file.originalname;
-            const fileBuffer = fs.readFileSync(file.path);
+            const fileBuffer = await fs.promises.readFile(file.path);
             
             const processedBuffer = await processFile(fileBuffer, relativePath);
             let outName = renamer(relativePath, 0);
@@ -132,7 +132,7 @@ router.post('/minify', upload.array('files'), async (req, res) => {
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const relativePath = normalizedPaths[i] || file.originalname;
-            const fileBuffer = fs.readFileSync(file.path);
+            const fileBuffer = await fs.promises.readFile(file.path);
 
             const processedBuffer = await processFile(fileBuffer, relativePath);
             let finalPath = renamer(relativePath, i);

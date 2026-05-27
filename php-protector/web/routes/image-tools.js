@@ -20,7 +20,7 @@ async function handleProcessResponse(res, files, paths, processor, jobId, rename
         try {
             const file = files[0];
             const relativePath = normalizedPaths[0] || file.originalname;
-            const fileBuffer = fs.readFileSync(file.path);
+            const fileBuffer = await fs.promises.readFile(file.path);
             const processedBuffer = await processor(fileBuffer, relativePath);
             const outName = renamer ? renamer(relativePath, 0) : relativePath;
             
@@ -54,7 +54,7 @@ async function handleProcessResponse(res, files, paths, processor, jobId, rename
             const file = files[i];
             let relativePath = normalizedPaths[i] || file.originalname;
             const ext = path.extname(relativePath).toLowerCase();
-            const fileBuffer = fs.readFileSync(file.path);
+            const fileBuffer = await fs.promises.readFile(file.path);
 
             let finalPath;
             if (imageExtensions.includes(ext)) {
