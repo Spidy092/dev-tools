@@ -8,8 +8,13 @@ const { router: progressRouter } = require('./routes/progress');
 const crypto = require('crypto');
 
 const app = express();
+app.set('trust proxy', 1);
+
 const DEFAULT_PORT = Number(process.env.PORT) || 3000;
 const MAX_PORT_RETRIES = process.env.PORT ? 0 : 10;
+
+// Serve static assets first, bypassing rate limiter
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Generate per-request nonce for CSP
 app.use((req, res, next) => {
@@ -35,12 +40,11 @@ app.use(compression());
 
 const limiter = rateLimit({
   windowMs: 1 * 60 * 1000,
-  max: 30,
+  max: 250, // Increased to 150 to handle busy API usage and multi-file processing
   message: 'Too many requests from this IP, please try again in a minute.'
 });
 app.use(limiter);
 
-app.use(express.static(path.join(__dirname, '../public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
