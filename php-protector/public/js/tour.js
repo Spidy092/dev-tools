@@ -29,6 +29,7 @@ const Tour = {
 
   showStep() {
     this.removeTooltip();
+    this.removeHighlight();
     if (this.current >= this.steps.length) { this.finish(); return; }
 
     const step = this.steps[this.current];
@@ -52,11 +53,15 @@ const Tour = {
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:11px;color:#6b6b80">${this.current + 1}/${this.steps.length}</span>
         <div>
-          <button onclick="Tour.skip()" style="background:none;border:none;color:#6b6b80;cursor:pointer;margin-right:12px;font-size:13px">Skip</button>
-          <button onclick="Tour.next()" style="background:#7c5cfc;border:none;color:#fff;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:13px">${this.current === this.steps.length - 1 ? 'Done' : 'Next'}</button>
+          <button id="tour-skip" style="background:none;border:none;color:#6b6b80;cursor:pointer;margin-right:12px;font-size:13px">Skip</button>
+          <button id="tour-next" style="background:#7c5cfc;border:none;color:#fff;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:13px">${this.current === this.steps.length - 1 ? 'Done' : 'Next'}</button>
         </div>
       </div>`;
     document.body.appendChild(tip);
+
+    // Programmatic event listeners to satisfy CSP
+    tip.querySelector('#tour-skip').addEventListener('click', () => this.skip());
+    tip.querySelector('#tour-next').addEventListener('click', () => this.next());
 
     // Position tooltip
     const rect = el.getBoundingClientRect();
@@ -74,18 +79,22 @@ const Tour = {
 
   finish() {
     this.removeTooltip();
+    this.removeHighlight();
     const overlay = document.getElementById('tour-overlay');
     if (overlay) overlay.remove();
-    document.querySelectorAll('[data-tour-highlight]').forEach(el => {
-      el.classList.remove('tour-highlight');
-      delete el.dataset.tourHighlight;
-    });
     localStorage.setItem(this.STORAGE_KEY, '1');
   },
 
   removeTooltip() {
     const tip = document.getElementById('tour-tooltip');
     if (tip) tip.remove();
+  },
+
+  removeHighlight() {
+    document.querySelectorAll('[data-tour-highlight]').forEach(el => {
+      el.classList.remove('tour-highlight');
+      delete el.dataset.tourHighlight;
+    });
   }
 };
 
