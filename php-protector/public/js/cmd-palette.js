@@ -6,6 +6,7 @@
     { name: 'PHP Protector', url: '/php-protector', icon: '🛡️', tag: 'security obfuscate' },
     { name: 'Image Resizer', url: '/image-resizer', icon: '📐', tag: 'resize crop' },
     { name: 'Image Converter', url: '/image-converter', icon: '🔄', tag: 'webp avif png jpeg convert' },
+    { name: 'Image Compressor', url: '/image-compressor', icon: '🗜️', tag: 'compress shrink optimize heic avif tiff' },
     { name: 'PDF Compressor', url: '/pdf-compressor', icon: '📄', tag: 'compress shrink pdf' },
     { name: 'File Renamer', url: '/file-renamer', icon: '🏷️', tag: 'rename bulk clean' },
     { name: 'Code Minifier', url: '/code-minifier', icon: '⚡', tag: 'minify html css js' },

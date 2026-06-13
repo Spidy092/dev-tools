@@ -90,6 +90,7 @@ const Tour = {
     if (tip) tip.remove();
   },
 
+  
   removeHighlight() {
     document.querySelectorAll('[data-tour-highlight]').forEach(el => {
       el.classList.remove('tour-highlight');

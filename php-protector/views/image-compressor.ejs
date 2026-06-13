@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'Image Compressor' }) %>
+</head>
+<body>
+  <div class="container" id="main-container">
+    <%- include('partials/header', { pill: 'UNIVERSAL TOOL', h1Left: 'Image', h1Right: 'Compressor', subtitle: 'Shrink any image format. Bulk-folders, smart presets, metadata strip.' }) %>
+
+    <div class="mode-tabs">
+      <div class="mode-tab active" data-mode="bulk">Bulk Folder</div>
+      <div class="mode-tab" data-mode="single">Multiple Files</div>
+    </div>
+
+    <div id="options-panel">
+      <div class="stats" style="grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+        <div class="stat-card">
+          <div class="form-group">
+            <label>Quality Preset</label>
+            <select id="level">
+              <option value="low">Low (smallest files)</option>
+              <option value="medium" selected>Medium (balanced)</option>
+              <option value="high">High (best quality)</option>
+              <option value="lossless">Lossless</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </div>
+          <div class="form-group" id="custom-quality-group" style="margin-top:15px; display:none">
+            <label>Custom Quality (1-100)</label>
+            <input type="number" id="customQuality" value="75" min="1" max="100">
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="form-group">
+            <label>Output Format</label>
+            <select id="targetFormat">
+              <option value="keep" selected>Keep original</option>
+              <option value="webp">WebP (recommended)</option>
+              <option value="jpeg">JPEG</option>
+              <option value="png">PNG</option>
+              <option value="avif">AVIF (next-gen)</option>
+              <option value="heif">HEIF / HEIC</option>
+              <option value="tiff">TIFF</option>
+              <option value="gif">GIF</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-top:15px">
+            <label>Max Width (px) — optional</label>
+            <input type="number" id="maxWidth" value="0" min="0" placeholder="0 = no resize">
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="form-group">
+            <label>Supported Formats</label>
+            <div style="font-size:12px;color:var(--text-muted);line-height:1.7;padding-top:4px">
+              JPEG · PNG · WebP · AVIF · HEIF/HEIC · TIFF · GIF · BMP · JP2 · JXL · SVG
+            </div>
+          </div>
+          <label class="feature-opt" style="margin-top:15px">
+            <input type="checkbox" id="stripMetadata" checked>
+            <span>Strip metadata (EXIF, GPS, camera info)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div id="dropzone" class="dropzone">
+      <div class="drop-icon">🗜️</div>
+      <p class="drop-title">Drop your folder here</p>
+      <p class="drop-sub">All image formats supported — folder structure preserved.</p>
+      <label class="browse-btn">Browse project<input type="file" id="folder-input" webkitdirectory></label>
+    </div>
+
+    <div id="file-tree-panel" class="hidden">
+      <div class="form-group"><label>Exclude patterns</label><input type="text" id="exclude-patterns" class="exclude-input" placeholder="e.g. thumbs/*, *.ico"></div>
+      <div id="file-tree" class="file-tree-wrap"></div>
+      <button id="proceed-btn" class="browse-btn" style="margin-top:12px;width:100%;text-align:center">Compress Files</button>
+    </div>
+
+    <div id="stats" class="stats hidden">
+      <div class="stat-card"><div class="stat-val" id="stat-total">0</div><div class="stat-label">Files queued</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-done">0</div><div class="stat-label">Processed</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-saved">0%</div><div class="stat-label">Avg. saved</div></div>
+    </div>
+
+    <div id="progress-wrap" class="progress-wrap hidden">
+      <div class="progress-label"><span id="progress-text">Squeezing pixels...</span><span id="progress-pct">0%</span></div>
+      <div class="progress-track"><div id="progress-bar" class="progress-bar" style="width:0%"></div></div>
+    </div>
+
+    <div id="log-wrap" class="log-wrap hidden">
+      <div class="log-header"><span class="log-dot"></span> Live Processing Log</div>
+      <div id="log" class="log"></div>
+    </div>
+
+    <div id="download-wrap" class="download-wrap hidden">
+      <div class="done-message">Compression complete!</div>
+      <button id="download-btn" class="download-btn">Download Archive (.zip)</button>
+      <button id="reset-btn" class="reset-btn">Compress more</button>
+    </div>
+  </div>
+
+  <script nonce="<%= locals.nonce || '' %>">
+    window.toolEndpoint = '/image-compressor-tools/compress';
+    // Show/hide the custom-quality field
+    document.addEventListener('DOMContentLoaded', function() {
+      var sel = document.getElementById('level');
+      var grp = document.getElementById('custom-quality-group');
+      if (sel && grp) {
+        sel.addEventListener('change', function() {
+          grp.style.display = sel.value === 'custom' ? 'block' : 'none';
+        });
+      }
+    });
+  </script>
+  <%- include('partials/footer') %>
+</body>
+</html>

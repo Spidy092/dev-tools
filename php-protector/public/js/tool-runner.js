@@ -293,6 +293,10 @@ function initToolRunner() {
 
     const endpoint = window.toolEndpoint || '/upload';
 
+    // Reset "saved" stat if present
+    const statSaved = document.getElementById('stat-saved');
+    if (statSaved) statSaved.innerText = '0%';
+
     try {
       const response = await fetch(endpoint, { method: 'POST', body: formData });
       if (!response.ok) throw new Error(`Server error (${response.status})`);
@@ -323,6 +327,15 @@ function initToolRunner() {
   function connectSSE(jobId, totalFiles) {
     const evtSource = new EventSource(`/progress/${jobId}`);
     let processed = 0;
+    let totalOriginal = 0;
+    let totalCompressed = 0;
+
+    function fmt(bytes) {
+      if (!bytes && bytes !== 0) return '';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(2) + ' MB';
+    }
 
     evtSource.onmessage = (e) => {
       const data = JSON.parse(e.data);
@@ -334,12 +347,33 @@ function initToolRunner() {
       const statDone = document.getElementById('stat-done');
       if (statDone) statDone.innerText = processed;
 
+      // Track running average saved (compress events only)
+      if (typeof data.originalSize === 'number' && typeof data.compressedSize === 'number') {
+        totalOriginal += data.originalSize;
+        totalCompressed += data.compressedSize;
+        if (totalOriginal > 0) {
+          const savedPct = Math.max(0, Math.round(((totalOriginal - totalCompressed) / totalOriginal) * 100));
+          const statSaved = document.getElementById('stat-saved');
+          if (statSaved) statSaved.innerText = savedPct + '%';
+        }
+      }
+
       const progressText = document.getElementById('progress-text');
       if (progressText) progressText.innerText = data.file || 'Processing...';
 
       if (logEl && data.file) {
-        const cls = data.type === 'php' ? 'log-php' : 'log-copy';
-        logEl.innerHTML += `<div class="${cls}">[${data.type === 'php' ? 'PHP' : 'COPY'}] ${data.file}</div>`;
+        let cls, label;
+        if (data.type === 'php') { cls = 'log-php'; label = 'PHP'; }
+        else if (data.type === 'compress') { cls = 'log-compress'; label = 'COMP'; }
+        else if (data.type === 'skip') { cls = 'log-skip'; label = 'SKIP'; }
+        else { cls = 'log-copy'; label = 'COPY'; }
+
+        let detail = '';
+        if (typeof data.originalSize === 'number' && typeof data.compressedSize === 'number') {
+          const red = data.reduction || 0;
+          detail = ` <span style="color:var(--text-muted)">(${fmt(data.originalSize)} → ${fmt(data.compressedSize)}, ${red >= 0 ? '−' : '+'}${Math.abs(red).toFixed(1)}%)</span>`;
+        }
+        logEl.innerHTML += `<div class="${cls}">[${label}] ${data.file}${detail}</div>`;
         logEl.scrollTop = logEl.scrollHeight;
       }
     };
