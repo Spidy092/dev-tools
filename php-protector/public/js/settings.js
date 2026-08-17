@@ -1,24 +1,25 @@
-/**
- * Settings persistence via localStorage
- */
+/** Settings persistence via localStorage. */
 const Settings = {
   STORAGE_KEY: 'devtoolkit_settings',
 
   defaults: {
     imgFormat: 'webp',
     imgQuality: 80,
-    pdfLevel: 'ebook',
+    pdfLevel: '/ebook',
     mangle: 'true',
     showTour: 'true'
   },
 
   load() {
-    try { return JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || { ...this.defaults }; }
-    catch { return { ...this.defaults }; }
+    try {
+      return { ...this.defaults, ...(JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || {}) };
+    } catch {
+      return { ...this.defaults };
+    }
   },
 
   save() {
-    const data = {};
+    const data = { ...this.defaults };
     Object.keys(this.defaults).forEach(key => {
       const el = document.getElementById('s-' + key);
       if (el) data[key] = el.value;
@@ -41,25 +42,30 @@ const Settings = {
     });
   },
 
-  // Apply saved settings to tool pages (call on tool pages)
   applyToTool() {
     const data = this.load();
-    const map = { imgFormat: 'targetFormat', imgQuality: 'quality', pdfLevel: 'compressionLevel', mangle: 'mangle' };
-    Object.entries(map).forEach(([sKey, elId]) => {
-      const el = document.getElementById(elId);
-      if (el && data[sKey] !== undefined) el.value = data[sKey];
+    const targets = {
+      imgFormat: ['targetFormat'],
+      imgQuality: ['quality', 'customQuality'],
+      pdfLevel: ['pdfLevel'],
+      mangle: ['mangleVariables']
+    };
+
+    Object.entries(targets).forEach(([settingKey, ids]) => {
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el || data[settingKey] === undefined) return;
+        if (el.type === 'checkbox') el.checked = String(data[settingKey]) === 'true';
+        else el.value = data[settingKey];
+      });
     });
   }
 };
 
-// Auto-apply: on settings page populate form, on tool pages apply defaults
 function initSettings() {
   if (document.getElementById('s-imgFormat')) Settings.applyToForm();
   else Settings.applyToTool();
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initSettings);
-} else {
-  initSettings();
-}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSettings);
+else initSettings();
