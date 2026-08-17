@@ -46,3 +46,16 @@ test('healthz and readyz return machine-readable JSON', async t => {
   assert.equal(typeof payload.ready, 'boolean');
   assert.equal(typeof payload.jobs.active, 'number');
 });
+
+test('service worker does not cache legacy runner or server-rendered pages', async t => {
+  const server = app.listen(0, '127.0.0.1');
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  await new Promise(resolve => server.once('listening', resolve));
+
+  const sw = await request(server, '/sw.js');
+  assert.equal(sw.status, 200);
+  assert.doesNotMatch(sw.body, /tool-runner\.js/);
+  assert.doesNotMatch(sw.body, /virtual-tree\.js/);
+  assert.match(sw.body, /request\.mode === 'navigate'/);
+  assert.match(sw.body, /fetch\(request\)/);
+});
