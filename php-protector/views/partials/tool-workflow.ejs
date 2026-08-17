@@ -1,23 +1,68 @@
-<div class="mode-tabs" role="tablist" aria-label="Input mode">
-  <button class="mode-tab active" type="button" data-mode="bulk" role="tab" aria-selected="true">Folder</button>
-  <button class="mode-tab" type="button" data-mode="single" role="tab" aria-selected="false">Files</button>
-</div>
-
-<div id="dropzone" class="dropzone">
-  <div class="drop-icon" aria-hidden="true"><%= tool.icon %></div>
-  <p class="drop-title"><%= tool.workflow.dropTitle %></p>
-  <p class="drop-sub"><%= tool.workflow.dropSubtitle %></p>
-  <label class="browse-btn"><%= tool.workflow.browseLabel || 'Browse' %><input type="file" id="folder-input" webkitdirectory></label>
-</div>
-
-<div id="file-tree-panel" class="hidden">
-  <div class="form-group">
-    <label for="exclude-patterns">Exclude patterns</label>
-    <input type="text" id="exclude-patterns" class="exclude-input" placeholder="<%= tool.workflow.excludePlaceholder || 'e.g. node_modules/*, *.tmp' %>">
+<section class="workspace" data-tool-id="<%= tool.id %>">
+  <div id="dropzone" class="dropzone workspace-dropzone">
+    <div class="drop-icon" aria-hidden="true"><%= tool.icon %></div>
+    <p class="drop-title"><%= tool.workflow.dropTitle %></p>
+    <p class="drop-sub"><%= tool.workflow.dropSubtitle %></p>
+    <div class="source-actions" aria-label="Add source files">
+      <label class="browse-btn">Add files<input type="file" id="files-input" multiple></label>
+      <label class="secondary-action">Add folder<input type="file" id="folder-input" webkitdirectory multiple></label>
+    </div>
+    <p class="source-hint">Choose one file, many files, a folder, or drag and drop. Nothing starts until you review the queue.</p>
   </div>
-  <div id="file-tree" class="file-tree-wrap" aria-label="Selected files"></div>
-  <button id="proceed-btn" class="browse-btn tool-primary-action" type="button"><%= tool.workflow.processLabel || 'Process Files' %></button>
-</div>
+
+  <div id="file-tree-panel" class="queue-panel hidden">
+    <div class="queue-heading">
+      <div>
+        <p class="queue-eyebrow">Batch queue</p>
+        <h2>Review files before processing</h2>
+        <p id="queue-summary" class="queue-summary">0 files</p>
+      </div>
+      <div class="queue-add-actions">
+        <label class="secondary-action compact">+ Files<input type="file" id="queue-files-input" multiple></label>
+        <label class="secondary-action compact">+ Folder<input type="file" id="queue-folder-input" webkitdirectory multiple></label>
+      </div>
+    </div>
+
+    <div class="queue-toolbar">
+      <div class="queue-search-wrap">
+        <label class="sr-only" for="queue-search">Search files</label>
+        <input type="search" id="queue-search" class="queue-search" placeholder="Search files or paths…" autocomplete="off">
+      </div>
+      <div class="queue-toolbar-actions">
+        <button id="select-all-btn" class="queue-link-btn" type="button">Select visible</button>
+        <button id="deselect-all-btn" class="queue-link-btn" type="button">Deselect visible</button>
+        <button id="remove-selected-btn" class="queue-link-btn danger" type="button">Remove selected</button>
+      </div>
+    </div>
+
+    <div class="form-group queue-excludes">
+      <label for="exclude-patterns">Exclude patterns</label>
+      <input type="text" id="exclude-patterns" class="exclude-input" placeholder="<%= tool.workflow.excludePlaceholder || 'e.g. node_modules/*, *.tmp' %>">
+    </div>
+
+    <div class="queue-table" role="table" aria-label="Selected files">
+      <div class="queue-row queue-table-head" role="row">
+        <div role="columnheader" class="queue-check"><span class="sr-only">Selected</span></div>
+        <div role="columnheader">File</div>
+        <div role="columnheader" class="queue-size">Size</div>
+        <div role="columnheader" class="queue-status">Status</div>
+        <div role="columnheader" class="queue-remove"><span class="sr-only">Remove</span></div>
+      </div>
+      <div id="file-tree" class="queue-table-body" role="rowgroup" aria-live="polite"></div>
+      <div id="queue-empty" class="queue-empty hidden">No files match your search.</div>
+    </div>
+
+    <div id="queue-overflow-note" class="queue-overflow-note hidden"></div>
+
+    <div class="queue-action-bar" id="queue-action-bar">
+      <div>
+        <strong id="queue-selected-count">0 selected</strong>
+        <span id="queue-selected-size">0 B</span>
+      </div>
+      <button id="proceed-btn" class="browse-btn tool-primary-action" type="button" disabled><%= tool.workflow.processLabel || 'Process Files' %></button>
+    </div>
+  </div>
+</section>
 
 <div id="stats" class="stats hidden">
   <% (tool.workflow.stats || []).forEach(function(stat) { %>
@@ -46,4 +91,5 @@
 
 <script nonce="<%= locals.nonce || '' %>">
   window.toolEndpoint = <%- JSON.stringify(tool.workflow.endpoint) %>;
+  window.toolProcessLabel = <%- JSON.stringify(tool.workflow.processLabel || 'Process Files') %>;
 </script>
