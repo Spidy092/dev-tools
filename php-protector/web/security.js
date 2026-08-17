@@ -1,4 +1,5 @@
 const path = require('path');
+const { cleanupJob } = require('./multer-setup');
 
 /**
  * Normalize a user-provided relative path for archive/file output use.
@@ -42,12 +43,18 @@ function normalizePaths(paths, files = []) {
 function validateUploadedFiles(req, res, next) {
   try {
     const files = req.files || [];
-    if (!files.length) return res.status(400).json({ error: 'No files uploaded' });
+    if (!files.length) {
+      cleanupJob(req.jobId);
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
 
     // Validate every client-provided relative path before a route can use it.
     req.safePaths = normalizePaths(req.body.paths, files);
     next();
   } catch (_error) {
+    // Multer has already written the upload by this stage. Invalid client paths
+    // must not leave rejected files behind until the periodic stale-file sweep.
+    cleanupJob(req.jobId);
     return res.status(400).json({ error: 'One or more uploaded file paths are invalid.' });
   }
 }
