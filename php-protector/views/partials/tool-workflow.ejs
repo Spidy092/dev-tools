@@ -43,3 +43,7 @@
   <button id="download-btn" class="download-btn" type="button"><%= tool.workflow.downloadLabel || 'Download Result' %></button>
   <button id="reset-btn" class="reset-btn" type="button"><%= tool.workflow.resetLabel || 'Process more' %></button>
 </div>
+
+<script nonce="<%= locals.nonce || '' %>">
+  window.toolEndpoint = <%- JSON.stringify(tool.workflow.endpoint) %>;
+</script>
