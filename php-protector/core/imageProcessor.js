@@ -2,6 +2,17 @@ const sharp = require('sharp');
 
 const MAX_INPUT_PIXELS = Number(process.env.MAX_IMAGE_PIXELS) || 100_000_000;
 const MAX_OUTPUT_DIMENSION = Number(process.env.MAX_IMAGE_OUTPUT_WIDTH) || 16_384;
+const SHARP_CONCURRENCY = Math.min(8, Math.max(1, Number(process.env.SHARP_CONCURRENCY) || 2));
+const SHARP_CACHE_MEMORY_MB = Math.min(512, Math.max(0, Number(process.env.SHARP_CACHE_MEMORY_MB) || 64));
+const SHARP_CACHE_FILES = Math.min(1000, Math.max(0, Number(process.env.SHARP_CACHE_FILES) || 20));
+const SHARP_CACHE_ITEMS = Math.min(5000, Math.max(0, Number(process.env.SHARP_CACHE_ITEMS) || 100));
+
+sharp.concurrency(SHARP_CONCURRENCY);
+sharp.cache({
+  memory: SHARP_CACHE_MEMORY_MB,
+  files: SHARP_CACHE_FILES,
+  items: SHARP_CACHE_ITEMS
+});
 
 function makeSharp(buffer) {
   return sharp(buffer, { failOn: 'none', limitInputPixels: MAX_INPUT_PIXELS });
@@ -58,4 +69,11 @@ async function convertImage(buffer, options = {}) {
   }
 }
 
-module.exports = { resizeImage, convertImage, MAX_INPUT_PIXELS };
+module.exports = {
+  resizeImage,
+  convertImage,
+  SHARP_CONCURRENCY,
+  SHARP_CACHE_MEMORY_MB,
+  MAX_INPUT_PIXELS,
+  MAX_OUTPUT_DIMENSION
+};
