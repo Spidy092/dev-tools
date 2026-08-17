@@ -1,0 +1,69 @@
+name: New tool proposal
+description: Propose a new developer utility for the DevToolkit catalog
+title: "[Tool]: "
+labels: []
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Proposed tool name
+      placeholder: e.g. JSON Formatter
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Developer problem
+      description: What repetitive task does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Expected workflow
+      description: Describe inputs, options, processing, and outputs.
+    validations:
+      required: true
+  - type: dropdown
+    id: bulk
+    attributes:
+      label: Bulk / folder value
+      options:
+        - Essential — the main value is bulk/folder processing
+        - Useful — both single and bulk workflows matter
+        - Limited — mostly a single-item utility
+    validations:
+      required: true
+  - type: textarea
+    id: formats
+    attributes:
+      label: Inputs and outputs
+      placeholder: Supported file types/formats, output behavior, folder structure expectations
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies or system tools
+      description: List known npm packages, binaries, or external runtimes that might be needed.
+  - type: textarea
+    id: safety
+    attributes:
+      label: Security and resource considerations
+      description: Consider untrusted input, CPU/RAM usage, file size, subprocesses, archive safety, and timeouts.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Existing alternatives
+      description: Optional. What tools do developers currently use for this job?
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and ROADMAP.md for this tool.
+          required: true
+        - label: I understand that proposals are evaluated for usefulness, safety, maintenance cost, and fit with the shared workflow.
+          required: true
