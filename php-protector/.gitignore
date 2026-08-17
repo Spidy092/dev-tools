@@ -8,3 +8,8 @@ yarn-debug.log*
 yarn-error.log*
 .idea/
 .vscode/
+
+# Runtime processing data — never commit user uploads or generated temp files.
+uploads/
+tmp/
+*.log
