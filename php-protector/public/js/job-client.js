@@ -27,7 +27,7 @@
     if (!button) return;
     button.disabled = !processing || !activeJobId;
     button.classList.toggle('hidden', !processing);
-    button.textContent = processing ? 'Cancel processing' : 'Cancel processing';
+    if (!button.disabled) button.textContent = 'Cancel processing';
   }
 
   function createJobContext() {
@@ -46,6 +46,20 @@
     updateCancelButton();
   }
 
+  function wrapResponseConsumption(response, contextJobId) {
+    ['blob', 'text', 'arrayBuffer', 'json'].forEach(function (method) {
+      if (typeof response[method] !== 'function') return;
+      var original = response[method].bind(response);
+      try {
+        response[method] = async function () {
+          try { return await original(); }
+          finally { clearJobContext(contextJobId); }
+        };
+      } catch (_error) {}
+    });
+    return response;
+  }
+
   window.fetch = function (input, init) {
     if (!isProcessingRequest(input, init)) return nativeFetch(input, init);
 
@@ -56,16 +70,15 @@
     headers.set('X-Request-Key', context.requestKey);
     nextInit.headers = headers;
 
-    var responsePromise = nativeFetch(input, nextInit);
-    responsePromise.then(function (response) {
+    return nativeFetch(input, nextInit).then(function (response) {
       var serverJobId = response.headers.get('X-Job-Id');
       if (serverJobId) activeJobId = serverJobId;
       updateCancelButton();
-      return response;
-    }).catch(function () {
+      return wrapResponseConsumption(response, activeJobId || context.jobId);
+    }).catch(function (error) {
       clearJobContext(context.jobId);
+      throw error;
     });
-    return responsePromise;
   };
 
   async function cancelActiveJob() {
@@ -99,10 +112,6 @@
     getActiveJobId: function () { return activeJobId; },
     markFinished: clearJobContext
   };
-
-  document.addEventListener('devtoolkit:job-finished', function (event) {
-    clearJobContext(event.detail && event.detail.jobId);
-  });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
