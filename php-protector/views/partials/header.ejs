@@ -1,13 +1,21 @@
 <nav class="topnav" aria-label="Primary navigation">
   <a href="/" class="topnav-brand"><span class="brand-mark">D</span><span class="brand-name">Dev<span>Toolkit</span></span></a>
 
-  <div class="topnav-section-label">Tools</div>
-  <div class="topnav-links">
-    <% (locals.tools || []).forEach(function(navTool) { %>
-      <a href="<%= navTool.route %>" class="topnav-link" title="<%= navTool.name %>" aria-label="<%= navTool.name %>">
-        <span class="nav-icon" aria-hidden="true"><%= navTool.icon %></span>
-        <span class="nav-label"><%= navTool.name %></span>
-      </a>
+  <% var navTools = locals.tools || []; %>
+  <% var navCategories = Array.from(new Set(navTools.map(function(item) { return item.category; }))).sort(); %>
+  <div class="topnav-scroll">
+    <% navCategories.forEach(function(category) { %>
+      <div class="topnav-group">
+        <div class="topnav-section-label"><%= category %></div>
+        <div class="topnav-links">
+          <% navTools.filter(function(item) { return item.category === category; }).forEach(function(navTool) { %>
+            <a href="<%= navTool.route %>" class="topnav-link" title="<%= navTool.name %>" aria-label="<%= navTool.name %>" data-nav-tool-id="<%= navTool.id %>">
+              <span class="nav-icon" aria-hidden="true"><%= navTool.icon %></span>
+              <span class="nav-label"><%= navTool.name %></span>
+            </a>
+          <% }) %>
+        </div>
+      </div>
     <% }) %>
   </div>
 
