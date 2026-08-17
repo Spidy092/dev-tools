@@ -1,64 +1,132 @@
-/**
- * Command Palette — Ctrl+K to open, search and switch between tools
- */
+/** Command Palette — Ctrl/Cmd+K, powered by the server tool registry. */
 (function() {
   var tools = [
-    { name: 'PHP Protector', url: '/php-protector', icon: '🛡️', tag: 'security obfuscate' },
-    { name: 'Image Resizer', url: '/image-resizer', icon: '📐', tag: 'resize crop' },
-    { name: 'Image Converter', url: '/image-converter', icon: '🔄', tag: 'webp avif png jpeg convert' },
-    { name: 'Image Compressor', url: '/image-compressor', icon: '🗜️', tag: 'compress shrink optimize heic avif tiff' },
-    { name: 'PDF Compressor', url: '/pdf-compressor', icon: '📄', tag: 'compress shrink pdf' },
-    { name: 'File Renamer', url: '/file-renamer', icon: '🏷️', tag: 'rename bulk clean' },
-    { name: 'Code Minifier', url: '/code-minifier', icon: '⚡', tag: 'minify html css js' },
-    { name: 'Dashboard', url: '/', icon: '🏠', tag: 'home index' },
-    { name: 'Settings', url: '/settings', icon: '⚙️', tag: 'preferences config' }
+    { name: 'Dashboard', route: '/', icon: '🏠', keywords: ['home'] },
+    { name: 'Settings', route: '/settings', icon: '⚙️', keywords: ['preferences'] }
   ];
 
-  // Inject palette HTML
+  fetch('/api/tools')
+    .then(function(res) { return res.ok ? res.json() : Promise.reject(new Error('registry unavailable')); })
+    .then(function(data) {
+      if (data && Array.isArray(data.tools)) tools = data.tools.concat(tools);
+    })
+    .catch(function() {});
+
   var el = document.createElement('div');
   el.id = 'cmd-palette';
   el.className = 'hidden';
-  el.innerHTML = '<div class="cmd-overlay"></div><div class="cmd-modal"><input type="text" class="cmd-input" placeholder="Search tools... (Ctrl+K)" autocomplete="off"><div class="cmd-results"></div><div class="cmd-hint">↑↓ navigate · Enter select · Esc close</div></div>';
+
+  var overlay = document.createElement('div');
+  overlay.className = 'cmd-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'cmd-modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-label', 'Search DevToolkit tools');
+
+  var input = document.createElement('input');
+  input.type = 'search';
+  input.className = 'cmd-input';
+  input.placeholder = 'Search tools...';
+  input.autocomplete = 'off';
+
+  var results = document.createElement('div');
+  results.className = 'cmd-results';
+
+  var hint = document.createElement('div');
+  hint.className = 'cmd-hint';
+  hint.textContent = '↑↓ navigate · Enter select · Esc close';
+
+  modal.appendChild(input);
+  modal.appendChild(results);
+  modal.appendChild(hint);
+  el.appendChild(overlay);
+  el.appendChild(modal);
   document.body.appendChild(el);
 
-  var input = el.querySelector('.cmd-input');
-  var results = el.querySelector('.cmd-results');
   var activeIdx = 0;
+
+  function matches(tool, query) {
+    if (!query) return true;
+    var haystack = [tool.name, tool.category, tool.description]
+      .concat(tool.keywords || [])
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return haystack.indexOf(query) !== -1;
+  }
+
+  function getFiltered(query) {
+    var q = String(query || '').trim().toLowerCase();
+    return tools.filter(function(tool) { return matches(tool, q); });
+  }
+
+  function render(query) {
+    var filtered = getFiltered(query);
+    activeIdx = Math.min(activeIdx, Math.max(0, filtered.length - 1));
+    results.replaceChildren();
+
+    filtered.forEach(function(tool, index) {
+      var link = document.createElement('a');
+      link.href = tool.route || tool.url || '/';
+      link.className = 'cmd-item' + (index === activeIdx ? ' active' : '');
+
+      var icon = document.createElement('span');
+      icon.className = 'cmd-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = tool.icon || '•';
+
+      var label = document.createElement('span');
+      label.textContent = tool.name;
+
+      link.appendChild(icon);
+      link.appendChild(label);
+      results.appendChild(link);
+    });
+  }
 
   function open() {
     el.classList.remove('hidden');
     input.value = '';
     activeIdx = 0;
     render('');
-    setTimeout(function() { input.focus(); }, 50);
+    setTimeout(function() { input.focus(); }, 20);
   }
 
-  function close() { el.classList.add('hidden'); }
-
-  function render(query) {
-    var q = query.toLowerCase();
-    var filtered = tools.filter(function(t) {
-      return !q || t.name.toLowerCase().includes(q) || t.tag.includes(q);
-    });
-    activeIdx = Math.min(activeIdx, Math.max(0, filtered.length - 1));
-    results.innerHTML = filtered.map(function(t, i) {
-      return '<a href="' + t.url + '" class="cmd-item' + (i === activeIdx ? ' active' : '') + '"><span class="cmd-icon">' + t.icon + '</span><span>' + t.name + '</span></a>';
-    }).join('');
+  function close() {
+    el.classList.add('hidden');
   }
 
-  input.addEventListener('input', function() { activeIdx = 0; render(input.value); });
+  input.addEventListener('input', function() {
+    activeIdx = 0;
+    render(input.value);
+  });
 
   input.addEventListener('keydown', function(e) {
     var items = results.querySelectorAll('.cmd-item');
-    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); render(input.value); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); render(input.value); }
-    else if (e.key === 'Enter') { e.preventDefault(); var active = items[activeIdx]; if (active) window.location.href = active.href; }
-    else if (e.key === 'Escape') { close(); }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, Math.max(0, items.length - 1));
+      render(input.value);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      render(input.value);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      var active = results.querySelectorAll('.cmd-item')[activeIdx];
+      if (active) window.location.href = active.href;
+    } else if (e.key === 'Escape') {
+      close();
+    }
   });
 
-  el.querySelector('.cmd-overlay').addEventListener('click', close);
-
+  overlay.addEventListener('click', close);
   document.addEventListener('keydown', function(e) {
-    if (e.ctrlKey && e.key === 'k') { e.preventDefault(); open(); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      el.classList.contains('hidden') ? open() : close();
+    }
   });
 })();
