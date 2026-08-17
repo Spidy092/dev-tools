@@ -1,268 +1,316 @@
 /**
- * DevToolkit shared processing workspace.
- * Selection is review-first: choosing files never starts processing automatically.
- * User-controlled filenames are rendered with textContent only.
+ * DevToolkit shared batch workspace.
+ * Add files/folders -> review/search/select -> configure -> process -> download.
  */
-(function() {
+(function () {
   function initToolRunner() {
     var dropzone = document.getElementById('dropzone');
+    var filesInput = document.getElementById('files-input');
     var folderInput = document.getElementById('folder-input');
+    var queueFilesInput = document.getElementById('queue-files-input');
+    var queueFolderInput = document.getElementById('queue-folder-input');
+    var queuePanel = document.getElementById('file-tree-panel');
+    var queueBody = document.getElementById('file-tree');
+    var queueSearch = document.getElementById('queue-search');
+    var queueEmpty = document.getElementById('queue-empty');
+    var queueSummary = document.getElementById('queue-summary');
+    var queueSelectedCount = document.getElementById('queue-selected-count');
+    var queueSelectedSize = document.getElementById('queue-selected-size');
+    var overflowNote = document.getElementById('queue-overflow-note');
+    var excludeInput = document.getElementById('exclude-patterns');
+    var selectAllBtn = document.getElementById('select-all-btn');
+    var deselectAllBtn = document.getElementById('deselect-all-btn');
+    var removeSelectedBtn = document.getElementById('remove-selected-btn');
+    var proceedBtn = document.getElementById('proceed-btn');
     var resetBtn = document.getElementById('reset-btn');
     var downloadBtn = document.getElementById('download-btn');
-    var fileTreePanel = document.getElementById('file-tree-panel');
-    var fileTreeEl = document.getElementById('file-tree');
-    var proceedBtn = document.getElementById('proceed-btn');
-    var excludeInput = document.getElementById('exclude-patterns');
     var logWrap = document.getElementById('log-wrap');
     var logEl = document.getElementById('log');
 
-    if (!dropzone || !folderInput) return;
+    if (!dropzone || !filesInput || !folderInput || !queueBody || !proceedBtn) return;
 
+    var queue = [];
     var processedBlob = null;
-    var fileName = 'processed.zip';
-    var currentMode = 'bulk';
-    var selectedFiles = [];
-    var visibleItems = [];
-    var debounceTimer = null;
+    var downloadName = 'processed.zip';
     var objectUrl = null;
-
-    var originalTitleEl = dropzone.querySelector('.drop-title');
-    var originalSubEl = dropzone.querySelector('.drop-sub');
-    var originalTitle = originalTitleEl ? originalTitleEl.textContent : 'Drop your folder here';
-    var originalSub = originalSubEl ? originalSubEl.textContent : '';
+    var debounceTimer = null;
+    var MAX_RENDERED_ROWS = 500;
 
     function toast(method, message, duration) {
       if (typeof Toast !== 'undefined' && Toast[method]) Toast[method](message, duration);
     }
 
     function formatSize(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
       if (bytes < 1024) return bytes + ' B';
       if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
       if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
       return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
     }
 
-    function setHidden(id, hidden) {
-      var el = document.getElementById(id);
-      if (el) el.classList.toggle('hidden', hidden);
-    }
-
-    function resetPanels(keepOptions) {
-      processedBlob = null;
-      selectedFiles = [];
-      visibleItems = [];
-      if (fileTreeEl) fileTreeEl.replaceChildren();
-      if (logEl) logEl.replaceChildren();
-      dropzone.classList.remove('hidden', 'drag-over');
-      if (fileTreePanel) fileTreePanel.classList.add('hidden');
-      setHidden('stats', true);
-      setHidden('progress-wrap', true);
-      setHidden('log-wrap', true);
-      setHidden('download-wrap', true);
-      var optionsPanel = document.getElementById('options-panel');
-      if (optionsPanel) optionsPanel.classList.toggle('hidden', !keepOptions);
-      if (typeof updateProgress === 'function') updateProgress(0);
-    }
-
-    function configureInput(mode) {
-      currentMode = mode === 'bulk' ? 'bulk' : 'files';
-      var parent = folderInput.parentNode;
-      var replacement = document.createElement('input');
-      replacement.type = 'file';
-      replacement.id = 'folder-input';
-      replacement.hidden = true;
-      if (currentMode === 'bulk') replacement.setAttribute('webkitdirectory', '');
-      else replacement.multiple = true;
-      replacement.addEventListener('change', onFileInputChange);
-      parent.replaceChild(replacement, folderInput);
-      folderInput = replacement;
-
-      if (originalTitleEl) originalTitleEl.textContent = currentMode === 'bulk' ? originalTitle : 'Drop files here';
-      if (originalSubEl) originalSubEl.textContent = currentMode === 'bulk' ? originalSub : 'Choose one file or many files, review them, then process.';
-      resetPanels(true);
-    }
-
-    document.querySelectorAll('.mode-tab').forEach(function(tab) {
-      tab.addEventListener('click', function() {
-        document.querySelectorAll('.mode-tab').forEach(function(other) { other.classList.remove('active'); });
-        tab.classList.add('active');
-        configureInput(tab.dataset.mode);
-      });
-    });
-
-    function onFileInputChange(event) {
-      var files = Array.from(event.target.files || []);
-      if (files.length) showReview(files);
-    }
-    folderInput.addEventListener('change', onFileInputChange);
-
     function filePath(file) {
-      return file.webkitRelativePath || file.name;
+      return String(file.webkitRelativePath || file.name || 'file').replace(/\\/g, '/');
+    }
+
+    function entryKey(file) {
+      return [filePath(file), file.size || 0, file.lastModified || 0].join('::');
     }
 
     function parsePatterns(raw) {
-      return String(raw || '').split(',').map(function(v) { return v.trim(); }).filter(Boolean);
+      return String(raw || '').split(',').map(function (value) { return value.trim(); }).filter(Boolean);
     }
 
     function wildcardMatch(value, pattern) {
       var escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
-      try { return new RegExp('^' + escaped + '$').test(value); }
+      try { return new RegExp('^' + escaped + '$', 'i').test(value); }
       catch (_error) { return false; }
     }
 
-    function isExcluded(pathValue, patterns) {
-      var basename = pathValue.split('/').pop();
-      return patterns.some(function(pattern) {
-        return wildcardMatch(pathValue, pattern) || wildcardMatch(basename, pattern);
-      });
-    }
-
-    function buildItems(files) {
+    function excludedByPattern(pathname) {
       var patterns = parsePatterns(excludeInput && excludeInput.value);
-      visibleItems = files.map(function(file, index) {
-        var pathname = filePath(file);
-        var excluded = isExcluded(pathname, patterns);
-        var extParts = pathname.split('.');
-        return {
-          path: pathname,
-          ext: extParts.length > 1 ? extParts.pop().toLowerCase() : '',
-          excluded: excluded,
-          checked: !excluded,
-          idx: index
-        };
-      }).sort(function(a, b) { return a.path.localeCompare(b.path); });
-    }
-
-    function renderReview() {
-      buildItems(selectedFiles);
-      if (!fileTreeEl) return;
-
-      if (typeof VirtualTree !== 'undefined') {
-        VirtualTree.init(fileTreeEl);
-        VirtualTree.setItems(visibleItems);
-        return;
-      }
-
-      fileTreeEl.replaceChildren();
-      var fragment = document.createDocumentFragment();
-      visibleItems.forEach(function(item) {
-        var row = document.createElement('div');
-        row.className = item.excluded ? 'ft-file ft-excluded' : item.ext === 'php' ? 'ft-file ft-php' : 'ft-file';
-
-        var checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = item.checked;
-        checkbox.dataset.fileIndex = String(item.idx);
-
-        var label = document.createElement('span');
-        label.textContent = item.path;
-
-        row.appendChild(checkbox);
-        row.appendChild(label);
-        fragment.appendChild(row);
+      var basename = pathname.split('/').pop();
+      return patterns.some(function (pattern) {
+        return wildcardMatch(pathname, pattern) || wildcardMatch(basename, pattern);
       });
-      fileTreeEl.appendChild(fragment);
     }
 
-    function showReview(files) {
-      selectedFiles = files;
-      var totalSize = files.reduce(function(total, file) { return total + (file.size || 0); }, 0);
-      toast('info', files.length + ' file' + (files.length === 1 ? '' : 's') + ' selected · ' + formatSize(totalSize), 3200);
+    function isVisible(entry) {
+      var query = String(queueSearch && queueSearch.value || '').trim().toLowerCase();
+      if (!query) return true;
+      return entry.path.toLowerCase().indexOf(query) !== -1;
+    }
+
+    function effectiveSelected(entry) {
+      return entry.selected && entry.status !== 'excluded';
+    }
+
+    function visibleEntries() {
+      return queue.filter(isVisible);
+    }
+
+    function selectedEntries() {
+      return queue.filter(effectiveSelected);
+    }
+
+    function syncExcludedStates() {
+      queue.forEach(function (entry) {
+        var excluded = excludedByPattern(entry.path);
+        if (entry.status === 'processing' || entry.status === 'done' || entry.status === 'failed') return;
+        entry.status = excluded ? 'excluded' : 'ready';
+      });
+    }
+
+    function addFiles(files) {
+      var existing = new Set(queue.map(function (entry) { return entry.key; }));
+      var added = 0;
+      Array.from(files || []).forEach(function (file) {
+        var key = entryKey(file);
+        if (existing.has(key)) return;
+        existing.add(key);
+        queue.push({
+          key: key,
+          file: file,
+          path: filePath(file),
+          size: file.size || 0,
+          selected: true,
+          status: 'ready'
+        });
+        added++;
+      });
+      syncExcludedStates();
+      queue.sort(function (a, b) { return a.path.localeCompare(b.path); });
+      if (added) toast('info', added + ' file' + (added === 1 ? '' : 's') + ' added to the queue.');
+      renderQueue();
+    }
+
+    function statusLabel(status) {
+      if (status === 'excluded') return 'Excluded';
+      if (status === 'processing') return 'Processing';
+      if (status === 'done') return 'Done';
+      if (status === 'failed') return 'Failed';
+      return 'Ready';
+    }
+
+    function updateSummary() {
+      var selected = selectedEntries();
+      var selectedSize = selected.reduce(function (sum, entry) { return sum + entry.size; }, 0);
+      var totalSize = queue.reduce(function (sum, entry) { return sum + entry.size; }, 0);
+      var excludedCount = queue.filter(function (entry) { return entry.status === 'excluded'; }).length;
+
+      if (queueSummary) {
+        queueSummary.textContent = queue.length + ' file' + (queue.length === 1 ? '' : 's') + ' · ' + formatSize(totalSize) + (excludedCount ? ' · ' + excludedCount + ' excluded' : '');
+      }
+      if (queueSelectedCount) queueSelectedCount.textContent = selected.length + ' selected';
+      if (queueSelectedSize) queueSelectedSize.textContent = formatSize(selectedSize);
+      proceedBtn.disabled = selected.length === 0;
+      proceedBtn.textContent = (window.toolProcessLabel || 'Process Files') + ' (' + selected.length + ')';
 
       var statPhp = document.getElementById('stat-php');
-      if (statPhp) statPhp.textContent = files.filter(function(file) { return /\.php$/i.test(file.name); }).length;
-
-      dropzone.classList.add('hidden');
-      var optionsPanel = document.getElementById('options-panel');
-      if (optionsPanel) optionsPanel.classList.add('hidden');
-      if (fileTreePanel) fileTreePanel.classList.remove('hidden');
-      renderReview();
+      if (statPhp) statPhp.textContent = String(selected.filter(function (entry) { return /\.php$/i.test(entry.path); }).length);
     }
+
+    function createQueueRow(entry) {
+      var row = document.createElement('div');
+      row.className = 'queue-row';
+      row.setAttribute('role', 'row');
+      row.dataset.key = entry.key;
+
+      var checkCell = document.createElement('div');
+      checkCell.className = 'queue-check';
+      var checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = effectiveSelected(entry);
+      checkbox.disabled = entry.status === 'excluded' || entry.status === 'processing' || entry.status === 'done';
+      checkbox.setAttribute('aria-label', 'Select ' + entry.path);
+      checkbox.addEventListener('change', function () {
+        entry.selected = checkbox.checked;
+        updateSummary();
+      });
+      checkCell.appendChild(checkbox);
+
+      var fileCell = document.createElement('div');
+      fileCell.className = 'queue-file';
+      var name = document.createElement('strong');
+      name.textContent = entry.path.split('/').pop();
+      var path = document.createElement('span');
+      path.textContent = entry.path;
+      fileCell.append(name, path);
+
+      var sizeCell = document.createElement('div');
+      sizeCell.className = 'queue-size';
+      sizeCell.textContent = formatSize(entry.size);
+
+      var statusCell = document.createElement('div');
+      statusCell.className = 'queue-status';
+      var badge = document.createElement('span');
+      badge.className = 'queue-status-badge status-' + entry.status;
+      badge.textContent = statusLabel(entry.status);
+      statusCell.appendChild(badge);
+
+      var removeCell = document.createElement('div');
+      removeCell.className = 'queue-remove';
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'queue-remove-btn';
+      remove.textContent = '×';
+      remove.title = 'Remove file';
+      remove.setAttribute('aria-label', 'Remove ' + entry.path);
+      remove.disabled = entry.status === 'processing';
+      remove.addEventListener('click', function () {
+        queue = queue.filter(function (candidate) { return candidate !== entry; });
+        renderQueue();
+      });
+      removeCell.appendChild(remove);
+
+      row.append(checkCell, fileCell, sizeCell, statusCell, removeCell);
+      return row;
+    }
+
+    function renderQueue() {
+      syncExcludedStates();
+      var visible = visibleEntries();
+      queueBody.replaceChildren();
+      var fragment = document.createDocumentFragment();
+      visible.slice(0, MAX_RENDERED_ROWS).forEach(function (entry) {
+        fragment.appendChild(createQueueRow(entry));
+      });
+      queueBody.appendChild(fragment);
+
+      if (queueEmpty) queueEmpty.classList.toggle('hidden', visible.length !== 0);
+      if (overflowNote) {
+        var hiddenRows = Math.max(0, visible.length - MAX_RENDERED_ROWS);
+        overflowNote.classList.toggle('hidden', hiddenRows === 0);
+        overflowNote.textContent = hiddenRows ? hiddenRows + ' more matching files are in the queue. Refine search to view them.' : '';
+      }
+
+      dropzone.classList.toggle('hidden', queue.length > 0);
+      if (queuePanel) queuePanel.classList.toggle('hidden', queue.length === 0);
+      updateSummary();
+    }
+
+    function handleInput(event) {
+      addFiles(event.target.files);
+      event.target.value = '';
+    }
+
+    [filesInput, folderInput, queueFilesInput, queueFolderInput].forEach(function (input) {
+      if (input) input.addEventListener('change', handleInput);
+    });
+
+    if (queueSearch) queueSearch.addEventListener('input', renderQueue);
 
     if (excludeInput) {
-      excludeInput.addEventListener('input', function() {
+      excludeInput.addEventListener('input', function () {
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(function() {
-          if (selectedFiles.length) renderReview();
-        }, 200);
+        debounceTimer = setTimeout(renderQueue, 160);
       });
     }
 
-    function selectedForProcessing() {
-      if (typeof VirtualTree !== 'undefined' && fileTreeEl && fileTreeEl.firstChild) {
-        return VirtualTree.getCheckedIndices().map(function(index) { return selectedFiles[index]; }).filter(Boolean);
-      }
-
-      if (!fileTreeEl) return selectedFiles.slice();
-      return Array.from(fileTreeEl.querySelectorAll('input[type="checkbox"]:checked'))
-        .map(function(cb) { return selectedFiles[Number(cb.dataset.fileIndex)]; })
-        .filter(Boolean);
-    }
-
-    if (proceedBtn) {
-      proceedBtn.addEventListener('click', function() {
-        var files = selectedForProcessing();
-        if (!files.length) return toast('error', 'Select at least one file to process.');
-        startProcessing(files);
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', function () {
+        visibleEntries().forEach(function (entry) {
+          if (entry.status === 'ready') entry.selected = true;
+        });
+        renderQueue();
       });
     }
 
-    async function droppedFiles(event) {
-      if (currentMode === 'bulk' && typeof readDroppedFolder === 'function') {
-        return readDroppedFolder(event.dataTransfer.items);
-      }
-      return Array.from(event.dataTransfer.files || []);
+    if (deselectAllBtn) {
+      deselectAllBtn.addEventListener('click', function () {
+        visibleEntries().forEach(function (entry) {
+          if (entry.status === 'ready') entry.selected = false;
+        });
+        renderQueue();
+      });
     }
 
-    dropzone.addEventListener('dragover', function(event) {
+    if (removeSelectedBtn) {
+      removeSelectedBtn.addEventListener('click', function () {
+        var removable = new Set(visibleEntries().filter(function (entry) {
+          return effectiveSelected(entry) && entry.status !== 'processing';
+        }));
+        queue = queue.filter(function (entry) { return !removable.has(entry); });
+        renderQueue();
+      });
+    }
+
+    async function filesFromDrop(event) {
+      var items = event.dataTransfer && event.dataTransfer.items;
+      if (items && items.length && typeof readDroppedFolder === 'function') {
+        try {
+          var recursive = await readDroppedFolder(items);
+          if (recursive && recursive.length) return recursive;
+        } catch (_error) {}
+      }
+      return Array.from(event.dataTransfer && event.dataTransfer.files || []);
+    }
+
+    dropzone.addEventListener('dragover', function (event) {
       event.preventDefault();
       dropzone.classList.add('drag-over');
     });
-    dropzone.addEventListener('dragleave', function() { dropzone.classList.remove('drag-over'); });
-    dropzone.addEventListener('drop', async function(event) {
+    dropzone.addEventListener('dragleave', function () { dropzone.classList.remove('drag-over'); });
+    dropzone.addEventListener('drop', async function (event) {
       event.preventDefault();
       dropzone.classList.remove('drag-over');
-      var files = await droppedFiles(event);
-      if (files.length) showReview(files);
+      addFiles(await filesFromDrop(event));
     });
 
-    var overlay = document.createElement('div');
-    overlay.className = 'drop-overlay hidden';
-    var overlayContent = document.createElement('div');
-    overlayContent.className = 'drop-overlay-content';
-    var overlayIcon = document.createElement('div');
-    overlayIcon.className = 'drop-overlay-icon';
-    overlayIcon.textContent = '📂';
-    var overlayText = document.createElement('div');
-    overlayText.className = 'drop-overlay-text';
-    overlayText.textContent = 'Drop to add files';
-    overlayContent.append(overlayIcon, overlayText);
-    overlay.appendChild(overlayContent);
-    document.body.appendChild(overlay);
+    document.addEventListener('dragover', function (event) { event.preventDefault(); });
+    document.addEventListener('drop', async function (event) {
+      if (dropzone.contains(event.target)) return;
+      event.preventDefault();
+      addFiles(await filesFromDrop(event));
+    });
 
-    var dragDepth = 0;
-    document.addEventListener('dragenter', function(event) {
-      event.preventDefault();
-      dragDepth++;
-      if (!dropzone.classList.contains('hidden')) overlay.classList.remove('hidden');
-    });
-    document.addEventListener('dragleave', function(event) {
-      event.preventDefault();
-      dragDepth--;
-      if (dragDepth <= 0) {
-        dragDepth = 0;
-        overlay.classList.add('hidden');
-      }
-    });
-    document.addEventListener('dragover', function(event) { event.preventDefault(); });
-    document.addEventListener('drop', function() {
-      dragDepth = 0;
-      overlay.classList.add('hidden');
-    });
+    function setHidden(id, hidden) {
+      var element = document.getElementById(id);
+      if (element) element.classList.toggle('hidden', hidden);
+    }
 
     function collectOptions(formData) {
-      document.querySelectorAll('#options-panel input, #options-panel select').forEach(function(input) {
-        if (!input.id || input.type === 'file' || input.id === 'exclude-patterns' || input.disabled) return;
+      document.querySelectorAll('#options-panel input, #options-panel select').forEach(function (input) {
+        if (!input.id || input.type === 'file' || input.disabled) return;
         if (input.type === 'checkbox') formData.append(input.id, String(input.checked));
         else formData.append(input.id, input.value);
       });
@@ -282,6 +330,11 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
+    function markProgress(pathname, status) {
+      var entry = queue.find(function (item) { return item.path === pathname; });
+      if (entry) entry.status = status;
+    }
+
     function connectProgress(jobId, totalFiles) {
       if (!jobId) return;
       var source = new EventSource('/progress/' + encodeURIComponent(jobId));
@@ -289,38 +342,36 @@
       var originalBytes = 0;
       var outputBytes = 0;
 
-      source.onmessage = function(event) {
+      source.onmessage = function (event) {
         var data;
         try { data = JSON.parse(event.data); } catch (_error) { return; }
         if (data.event === 'done') {
           source.close();
           return;
         }
-
         processed++;
+        if (data.file) markProgress(data.file, data.type === 'error' ? 'failed' : 'done');
         if (typeof updateProgress === 'function') updateProgress(Math.min(100, processed / Math.max(totalFiles, 1) * 100));
-
         var done = document.getElementById('stat-done');
         if (done) done.textContent = String(processed);
-
         if (typeof data.originalSize === 'number' && typeof data.compressedSize === 'number') {
           originalBytes += data.originalSize;
           outputBytes += data.compressedSize;
           var saved = document.getElementById('stat-saved');
           if (saved && originalBytes > 0) saved.textContent = Math.max(0, Math.round((originalBytes - outputBytes) / originalBytes * 100)) + '%';
         }
-
         var progressText = document.getElementById('progress-text');
         if (progressText) progressText.textContent = data.file || 'Processing…';
         appendLog(data);
       };
-
-      source.onerror = function() { source.close(); };
+      source.onerror = function () { source.close(); };
     }
 
-    async function startProcessing(files) {
-      if (!files.length) return;
-      if (fileTreePanel) fileTreePanel.classList.add('hidden');
+    async function startProcessing(entries) {
+      if (!entries.length) return;
+      entries.forEach(function (entry) { entry.status = 'processing'; });
+      renderQueue();
+      if (queuePanel) queuePanel.classList.add('hidden');
       setHidden('stats', false);
       setHidden('progress-wrap', false);
       if (logWrap) logWrap.classList.remove('hidden');
@@ -328,14 +379,14 @@
       var total = document.getElementById('stat-total');
       var done = document.getElementById('stat-done');
       var saved = document.getElementById('stat-saved');
-      if (total) total.textContent = String(files.length);
+      if (total) total.textContent = String(entries.length);
       if (done) done.textContent = '0';
       if (saved) saved.textContent = '0%';
 
       var formData = new FormData();
-      files.forEach(function(file) {
-        formData.append('files', file);
-        formData.append('paths', filePath(file));
+      entries.forEach(function (entry) {
+        formData.append('files', entry.file);
+        formData.append('paths', entry.path);
       });
       collectOptions(formData);
 
@@ -346,44 +397,45 @@
           throw new Error(errorText && errorText.length < 180 ? errorText : 'Server error (' + response.status + ')');
         }
 
-        connectProgress(response.headers.get('X-Job-Id'), files.length);
-
+        connectProgress(response.headers.get('X-Job-Id'), entries.length);
         var disposition = response.headers.get('content-disposition') || '';
         var filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
-        if (filenameMatch) fileName = filenameMatch[1];
-
+        if (filenameMatch) downloadName = filenameMatch[1];
         processedBlob = await response.blob();
-        showComplete();
-        toast('success', files.length + ' file' + (files.length === 1 ? '' : 's') + ' processed successfully.');
+
+        entries.forEach(function (entry) {
+          if (entry.status === 'processing') entry.status = 'done';
+        });
+        if (typeof updateProgress === 'function') updateProgress(100);
+        setHidden('progress-wrap', true);
+        setHidden('download-wrap', false);
+        toast('success', entries.length + ' file' + (entries.length === 1 ? '' : 's') + ' processed successfully.');
       } catch (error) {
         console.error(error);
-        toast('error', 'Processing failed: ' + error.message, 5000);
-        if (fileTreePanel) fileTreePanel.classList.remove('hidden');
+        entries.forEach(function (entry) {
+          if (entry.status === 'processing') entry.status = 'failed';
+        });
         setHidden('progress-wrap', true);
+        if (queuePanel) queuePanel.classList.remove('hidden');
+        renderQueue();
+        toast('error', 'Processing failed: ' + error.message, 5000);
       }
     }
 
-    function showComplete() {
-      setHidden('progress-wrap', true);
-      setHidden('download-wrap', false);
-      if (typeof updateProgress === 'function') updateProgress(100);
-      if (logWrap) {
-        var dot = logWrap.querySelector('.log-dot');
-        if (dot) {
-          dot.style.animation = 'none';
-          dot.style.background = 'var(--success)';
-        }
-      }
-    }
+    proceedBtn.addEventListener('click', function () {
+      var entries = selectedEntries().filter(function (entry) { return entry.status === 'ready'; });
+      if (!entries.length) return toast('error', 'Select at least one ready file to process.');
+      startProcessing(entries);
+    });
 
     if (downloadBtn) {
-      downloadBtn.addEventListener('click', function() {
+      downloadBtn.addEventListener('click', function () {
         if (!processedBlob) return;
         if (objectUrl) URL.revokeObjectURL(objectUrl);
         objectUrl = URL.createObjectURL(processedBlob);
         var link = document.createElement('a');
         link.href = objectUrl;
-        link.download = fileName;
+        link.download = downloadName;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -392,15 +444,21 @@
     }
 
     if (resetBtn) {
-      resetBtn.addEventListener('click', function() {
-        if (objectUrl) {
-          URL.revokeObjectURL(objectUrl);
-          objectUrl = null;
-        }
-        resetPanels(true);
-        folderInput.value = '';
+      resetBtn.addEventListener('click', function () {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+        processedBlob = null;
+        queue = [];
+        if (logEl) logEl.replaceChildren();
+        setHidden('stats', true);
+        setHidden('progress-wrap', true);
+        setHidden('log-wrap', true);
+        setHidden('download-wrap', true);
+        renderQueue();
       });
     }
+
+    renderQueue();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initToolRunner);
