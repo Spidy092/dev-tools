@@ -1,0 +1,45 @@
+<div class="mode-tabs" role="tablist" aria-label="Input mode">
+  <button class="mode-tab active" type="button" data-mode="bulk" role="tab" aria-selected="true">Folder</button>
+  <button class="mode-tab" type="button" data-mode="single" role="tab" aria-selected="false">Files</button>
+</div>
+
+<div id="dropzone" class="dropzone">
+  <div class="drop-icon" aria-hidden="true"><%= tool.icon %></div>
+  <p class="drop-title"><%= tool.workflow.dropTitle %></p>
+  <p class="drop-sub"><%= tool.workflow.dropSubtitle %></p>
+  <label class="browse-btn"><%= tool.workflow.browseLabel || 'Browse' %><input type="file" id="folder-input" webkitdirectory></label>
+</div>
+
+<div id="file-tree-panel" class="hidden">
+  <div class="form-group">
+    <label for="exclude-patterns">Exclude patterns</label>
+    <input type="text" id="exclude-patterns" class="exclude-input" placeholder="<%= tool.workflow.excludePlaceholder || 'e.g. node_modules/*, *.tmp' %>">
+  </div>
+  <div id="file-tree" class="file-tree-wrap" aria-label="Selected files"></div>
+  <button id="proceed-btn" class="browse-btn tool-primary-action" type="button"><%= tool.workflow.processLabel || 'Process Files' %></button>
+</div>
+
+<div id="stats" class="stats hidden">
+  <% (tool.workflow.stats || []).forEach(function(stat) { %>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-<%= stat.id %>"><%= stat.initial || '0' %></div>
+      <div class="stat-label"><%= stat.label %></div>
+    </div>
+  <% }) %>
+</div>
+
+<div id="progress-wrap" class="progress-wrap hidden" aria-live="polite">
+  <div class="progress-label"><span id="progress-text"><%= tool.workflow.progressLabel || 'Processing…' %></span><span id="progress-pct">0%</span></div>
+  <div class="progress-track"><div id="progress-bar" class="progress-bar" style="width:0%"></div></div>
+</div>
+
+<div id="log-wrap" class="log-wrap hidden">
+  <div class="log-header"><span class="log-dot"></span> Live Processing Log</div>
+  <div id="log" class="log" aria-live="polite"></div>
+</div>
+
+<div id="download-wrap" class="download-wrap hidden">
+  <div class="done-message"><%= tool.workflow.completeLabel || 'Processing complete!' %></div>
+  <button id="download-btn" class="download-btn" type="button"><%= tool.workflow.downloadLabel || 'Download Result' %></button>
+  <button id="reset-btn" class="reset-btn" type="button"><%= tool.workflow.resetLabel || 'Process more' %></button>
+</div>
