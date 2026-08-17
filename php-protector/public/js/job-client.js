@@ -22,6 +22,30 @@
     return method === 'POST' && window.toolEndpoint && url === window.toolEndpoint;
   }
 
+  function fnvHex(value, seed) {
+    var hash = seed >>> 0;
+    for (var i = 0; i < value.length; i++) {
+      hash ^= value.charCodeAt(i);
+      hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    return hash.toString(16).padStart(8, '0');
+  }
+
+  function stableRequestKey(endpoint, body) {
+    var parts = [endpoint];
+    if (body && typeof body.forEach === 'function') {
+      body.forEach(function (value, key) {
+        if (typeof File !== 'undefined' && value instanceof File) {
+          parts.push(key + ':file:' + value.name + ':' + value.size + ':' + value.lastModified);
+        } else {
+          parts.push(key + ':' + String(value));
+        }
+      });
+    }
+    var source = parts.join('|');
+    return fnvHex(source, 2166136261) + fnvHex(source, 2246822519) + fnvHex(source, 3266489917) + fnvHex(source, 668265263);
+  }
+
   function updateCancelButton() {
     var button = document.getElementById('cancel-job-btn');
     if (!button) return;
@@ -30,9 +54,9 @@
     if (!button.disabled) button.textContent = 'Cancel processing';
   }
 
-  function createJobContext() {
+  function createJobContext(endpoint, body) {
     activeJobId = randomHex(16);
-    activeRequestKey = randomHex(16);
+    activeRequestKey = stableRequestKey(endpoint, body);
     processing = true;
     updateCancelButton();
     return { jobId: activeJobId, requestKey: activeRequestKey };
@@ -63,7 +87,8 @@
   window.fetch = function (input, init) {
     if (!isProcessingRequest(input, init)) return nativeFetch(input, init);
 
-    var context = createJobContext();
+    var endpoint = endpointUrl(input);
+    var context = createJobContext(endpoint, init && init.body);
     var nextInit = Object.assign({}, init || {});
     var headers = new Headers(nextInit.headers || {});
     headers.set('X-Job-Id', context.jobId);
