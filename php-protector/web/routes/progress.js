@@ -136,6 +136,34 @@ function getJobSignal(jobId) {
   return state ? state.controller.signal : undefined;
 }
 
+function getJobCounts() {
+  let active = 0;
+  let waiting = 0;
+  let completed = 0;
+  for (const state of jobs.values()) {
+    if (state.placeholder && !state.ended) waiting++;
+    else if (!state.ended && !terminal(state.status)) active++;
+    else completed++;
+  }
+  return { active, waiting, retained: jobs.size, completed };
+}
+
+function cancelAllActiveJobs(reason = 'shutdown') {
+  let cancelled = 0;
+  for (const [jobId, state] of jobs.entries()) {
+    if (state.placeholder || state.ended || terminal(state.status)) continue;
+    if (cancelJob(jobId, reason)) cancelled++;
+  }
+  return cancelled;
+}
+
+function closeProgressClients() {
+  for (const [jobId, client] of clients.entries()) {
+    try { client.end(); } catch (_) {}
+    clients.delete(jobId);
+  }
+}
+
 function sanitizeHeader(value, re) {
   const normalized = String(value || '').trim().toLowerCase();
   return re.test(normalized) ? normalized : '';
@@ -315,6 +343,9 @@ module.exports = {
   sendProgress,
   endProgress,
   cancelJob,
+  cancelAllActiveJobs,
+  closeProgressClients,
+  getJobCounts,
   isJobCancelled,
   throwIfCancelled,
   getJobSignal,
