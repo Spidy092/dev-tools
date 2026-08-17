@@ -12,48 +12,14 @@
     </div>
 
     <div class="dashboard" aria-label="Developer tools">
-      <a href="/php-protector" class="tool-card">
-        <span class="tag">Security</span>
-        <div class="icon" aria-hidden="true">🛡️</div>
-        <h2>PHP Protector</h2>
-        <p>Obfuscate PHP projects recursively while preserving project structure. Intended as basic source obfuscation, not encryption.</p>
-      </a>
-      <a href="/image-resizer" class="tool-card">
-        <span class="tag">Images</span>
-        <div class="icon" aria-hidden="true">📐</div>
-        <h2>Image Resizer</h2>
-        <p>Resize individual images or whole folders with Cover, Contain, Inside, and smart fitting options.</p>
-      </a>
-      <a href="/image-converter" class="tool-card">
-        <span class="tag">Images</span>
-        <div class="icon" aria-hidden="true">🔄</div>
-        <h2>Image Converter</h2>
-        <p>Convert batches between WebP, JPEG, PNG, AVIF, TIFF, and other supported formats.</p>
-      </a>
-      <a href="/image-compressor" class="tool-card">
-        <span class="tag">Images</span>
-        <div class="icon" aria-hidden="true">🗜️</div>
-        <h2>Image Compressor</h2>
-        <p>Compress one image, multiple images, or folder structures with quality presets and metadata controls.</p>
-      </a>
-      <a href="/pdf-compressor" class="tool-card">
-        <span class="tag">PDF</span>
-        <div class="icon" aria-hidden="true">📄</div>
-        <h2>PDF Compressor</h2>
-        <p>Reduce PDF size using guarded Ghostscript presets with support for multi-file and folder workflows.</p>
-      </a>
-      <a href="/file-renamer" class="tool-card">
-        <span class="tag">Files</span>
-        <div class="icon" aria-hidden="true">🏷️</div>
-        <h2>Smart File Renamer</h2>
-        <p>Standardize filenames in bulk with casing, separators, cleanup rules, patterns, and grouping options.</p>
-      </a>
-      <a href="/code-minifier" class="tool-card">
-        <span class="tag">Code</span>
-        <div class="icon" aria-hidden="true">⚡</div>
-        <h2>Code Minifier</h2>
-        <p>Minify HTML, CSS, and JavaScript individually or across a complete project while preserving other files.</p>
-      </a>
+      <% tools.forEach(function(tool) { %>
+        <a href="<%= tool.route %>" class="tool-card">
+          <span class="tag"><%= tool.category %></span>
+          <div class="icon" aria-hidden="true"><%= tool.icon %></div>
+          <h2><%= tool.name %></h2>
+          <p><%= tool.description %></p>
+        </a>
+      <% }) %>
     </div>
   </div>
   <div class="toast-container" id="toast-container"></div>
