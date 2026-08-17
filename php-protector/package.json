@@ -1,11 +1,16 @@
 {
-  "name": "php-protector",
-  "version": "1.0.0",
-  "description": "Obfuscate PHP files recursively via CLI or browser",
+  "name": "devtoolkit",
+  "version": "1.1.0",
+  "description": "Bulk-capable developer utilities for files, images, PDFs, code, and PHP obfuscation",
   "main": "web/app.js",
+  "engines": {
+    "node": ">=18.18"
+  },
   "scripts": {
     "start": "node --max-old-space-size=2048 web/app.js",
-    "cli": "node cli/index.js"
+    "cli": "node cli/index.js",
+    "test": "node --test tests/*.test.js",
+    "check": "npm test"
   },
   "dependencies": {
     "archiver": "^7.0.1",
