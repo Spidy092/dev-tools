@@ -63,8 +63,14 @@ const Settings = {
 };
 
 function initSettings() {
-  if (document.getElementById('s-imgFormat')) Settings.applyToForm();
+  const isSettingsPage = Boolean(document.getElementById('s-imgFormat'));
+  if (isSettingsPage) Settings.applyToForm();
   else Settings.applyToTool();
+
+  const saveButton = document.getElementById('save-settings');
+  const resetButton = document.getElementById('reset-settings');
+  if (saveButton) saveButton.addEventListener('click', () => Settings.save());
+  if (resetButton) resetButton.addEventListener('click', () => Settings.reset());
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSettings);
