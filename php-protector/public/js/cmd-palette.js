@@ -46,6 +46,7 @@
   document.body.appendChild(el);
 
   var activeIdx = 0;
+  var opener = null;
 
   function matches(tool, query) {
     if (!query) return true;
@@ -86,7 +87,8 @@
     });
   }
 
-  function open() {
+  function open(source) {
+    opener = source || document.activeElement;
     el.classList.remove('hidden');
     input.value = '';
     activeIdx = 0;
@@ -96,6 +98,7 @@
 
   function close() {
     el.classList.add('hidden');
+    if (opener && typeof opener.focus === 'function') opener.focus();
   }
 
   input.addEventListener('input', function() {
@@ -123,10 +126,14 @@
   });
 
   overlay.addEventListener('click', close);
+
+  var button = document.getElementById('open-command-palette');
+  if (button) button.addEventListener('click', function() { open(button); });
+
   document.addEventListener('keydown', function(e) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      el.classList.contains('hidden') ? open() : close();
+      el.classList.contains('hidden') ? open(document.activeElement) : close();
     }
   });
 })();
