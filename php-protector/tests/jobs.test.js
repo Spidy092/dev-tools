@@ -17,7 +17,7 @@ function startServer(t) {
   app.use('/progress', progressRouter);
   app.post('/slow', prepareJob, async (req, res) => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 120));
+      await new Promise(resolve => setTimeout(resolve, 150));
       throwIfCancelled(req.jobId);
       endProgress(req.jobId, 'completed');
       res.json({ ok: true, jobId: req.jobId });
@@ -59,11 +59,24 @@ function rawPost(baseUrl, pathname, headers = {}) {
   });
 }
 
+async function waitForJob(base, jobId, wantedStatus = 'running', timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const response = await fetch(`${base}/progress/${jobId}/status`);
+    if (response.ok) {
+      const payload = await response.json();
+      if (!wantedStatus || payload.status === wantedStatus) return payload;
+    }
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  throw new Error(`Job ${jobId} did not reach ${wantedStatus} in time`);
+}
+
 test('duplicate active job id is rejected with 409', async t => {
   const { base } = await startServer(t);
   const jobId = '1'.repeat(32);
   const first = rawPost(base, '/slow', { 'X-Job-Id': jobId, 'X-Request-Key': '2'.repeat(32) });
-  await new Promise(resolve => setTimeout(resolve, 20));
+  await waitForJob(base, jobId);
 
   const duplicate = await rawPost(base, '/slow', { 'X-Job-Id': jobId, 'X-Request-Key': '3'.repeat(32) });
   assert.equal(duplicate.status, 409);
@@ -76,13 +89,14 @@ test('duplicate active job id is rejected with 409', async t => {
 test('duplicate active request key is rejected even with a different job id', async t => {
   const { base } = await startServer(t);
   const requestKey = '4'.repeat(32);
-  const first = rawPost(base, '/slow', { 'X-Job-Id': '5'.repeat(32), 'X-Request-Key': requestKey });
-  await new Promise(resolve => setTimeout(resolve, 20));
+  const firstJobId = '5'.repeat(32);
+  const first = rawPost(base, '/slow', { 'X-Job-Id': firstJobId, 'X-Request-Key': requestKey });
+  await waitForJob(base, firstJobId);
 
   const duplicate = await rawPost(base, '/slow', { 'X-Job-Id': '6'.repeat(32), 'X-Request-Key': requestKey });
   assert.equal(duplicate.status, 409);
   const payload = JSON.parse(duplicate.body);
-  assert.equal(payload.jobId, '5'.repeat(32));
+  assert.equal(payload.jobId, firstJobId);
 
   const original = await first;
   assert.equal(original.status, 200);
@@ -92,7 +106,7 @@ test('active job can be cancelled through progress endpoint and reports cancelle
   const { base } = await startServer(t);
   const jobId = '7'.repeat(32);
   const processing = rawPost(base, '/slow', { 'X-Job-Id': jobId, 'X-Request-Key': '8'.repeat(32) });
-  await new Promise(resolve => setTimeout(resolve, 20));
+  await waitForJob(base, jobId);
 
   const cancel = await fetch(`${base}/progress/${jobId}/cancel`, { method: 'POST' });
   assert.equal(cancel.status, 202);
@@ -101,9 +115,7 @@ test('active job can be cancelled through progress endpoint and reports cancelle
   const result = await processing;
   assert.equal(result.status, 499);
 
-  const status = await fetch(`${base}/progress/${jobId}/status`);
-  assert.equal(status.status, 200);
-  const payload = await status.json();
+  const payload = await waitForJob(base, jobId, 'cancelled');
   assert.equal(payload.status, 'cancelled');
   assert.equal(payload.cancelRequested, true);
 });
@@ -114,8 +126,10 @@ test('job counters expose active and retained lifecycle state', async t => {
   assert.equal(typeof before.active, 'number');
   assert.equal(typeof before.retained, 'number');
 
-  const processing = rawPost(base, '/slow', { 'X-Job-Id': '9'.repeat(32), 'X-Request-Key': 'a'.repeat(32) });
-  await new Promise(resolve => setTimeout(resolve, 20));
+  const jobId = '9'.repeat(32);
+  const processing = rawPost(base, '/slow', { 'X-Job-Id': jobId, 'X-Request-Key': 'a'.repeat(32) });
+  await waitForJob(base, jobId);
   assert.ok(getJobCounts().active >= 1);
   await processing;
-});
+}
+);
