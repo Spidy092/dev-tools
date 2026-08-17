@@ -1,0 +1,9 @@
+# Default maintainer ownership for review routing.
+* @Spidy092
+
+# Security and runtime-sensitive areas.
+/php-protector/web/ @Spidy092
+/php-protector/core/ @Spidy092
+/.github/ @Spidy092
+/SECURITY.md @Spidy092
+/DEPLOYMENT.md @Spidy092
