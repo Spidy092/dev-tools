@@ -74,8 +74,15 @@
 </div>
 
 <div id="progress-wrap" class="progress-wrap hidden" aria-live="polite">
-  <div class="progress-label"><span id="progress-text"><%= tool.workflow.progressLabel || 'Processing…' %></span><span id="progress-pct">0%</span></div>
+  <div class="progress-label">
+    <span id="progress-text"><%= tool.workflow.progressLabel || 'Processing…' %></span>
+    <span id="progress-pct">0%</span>
+  </div>
   <div class="progress-track"><div id="progress-bar" class="progress-bar" style="width:0%"></div></div>
+  <div class="processing-actions">
+    <button id="cancel-job-btn" class="secondary-action danger hidden" type="button">Cancel processing</button>
+    <span class="processing-note">Cancellation is cooperative; the file currently being processed may finish first.</span>
+  </div>
 </div>
 
 <div id="log-wrap" class="log-wrap hidden">
