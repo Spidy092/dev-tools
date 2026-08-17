@@ -1,55 +1,68 @@
-const CACHE_NAME = 'devtoolkit-v1';
-const MAX_CACHE_ENTRIES = 50;
-const STATIC_ASSETS = [
-  '/',
-  '/css/style.css',
-  '/js/toast.js',
-  '/js/utils.js',
-  '/js/settings.js',
-  '/js/virtual-tree.js',
-  '/js/tool-runner.js'
-];
+const CACHE_NAME = 'devtoolkit-static-v2';
+const MAX_CACHE_ENTRIES = 80;
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
-  );
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE_NAME));
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
+self.addEventListener('activate', event => {
+  event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+      Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))
     )
   );
   self.clients.claim();
 });
 
-self.addEventListener('fetch', (e) => {
-  const { request } = e;
-  // Don't cache POST requests or SSE
-  if (request.method !== 'GET' || request.url.includes('/progress/')) return;
+function isStaticAsset(request) {
+  if (request.destination === 'style' || request.destination === 'script' || request.destination === 'font' || request.destination === 'image') return true;
+  try {
+    const url = new URL(request.url);
+    return url.origin === self.location.origin && /\.(?:css|js|png|jpg|jpeg|gif|svg|webp|ico|woff2?)$/i.test(url.pathname);
+  } catch (_) {
+    return false;
+  }
+}
 
-  e.respondWith(
-    caches.match(request).then(cached => {
-      const fetchPromise = fetch(request).then(response => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(request, clone);
-            // Trim cache to max entries
-            cache.keys().then(keys => {
-              if (keys.length > MAX_CACHE_ENTRIES) {
-                cache.delete(keys[0]);
-              }
-            });
-          });
-        }
-        return response;
-      }).catch(() => cached || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } }));
+async function trimCache(cache) {
+  const keys = await cache.keys();
+  if (keys.length <= MAX_CACHE_ENTRIES) return;
+  await Promise.all(keys.slice(0, keys.length - MAX_CACHE_ENTRIES).map(request => cache.delete(request)));
+}
 
-      return cached || fetchPromise;
-    })
-  );
+self.addEventListener('fetch', event => {
+  const { request } = event;
+  if (request.method !== 'GET') return;
+
+  let url;
+  try { url = new URL(request.url); } catch (_) { return; }
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/progress/') || url.pathname === '/healthz' || url.pathname === '/readyz') return;
+
+  // Never serve cached HTML/navigation responses. Tool pages and the dashboard are
+  // server-rendered and may contain per-request CSP nonces and fresh tool metadata.
+  if (request.mode === 'navigate' || request.destination === 'document' || !isStaticAsset(request)) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  // Static assets use stale-while-revalidate. This keeps repeat visits fast while
+  // allowing deployments to refresh CSS/JS without a stale cached application shell.
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const cached = await cache.match(request);
+    const network = fetch(request).then(async response => {
+      if (response.ok) {
+        await cache.put(request, response.clone());
+        await trimCache(cache);
+      }
+      return response;
+    }).catch(() => null);
+
+    return cached || await network || new Response('Offline', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+    });
+  })());
 });
