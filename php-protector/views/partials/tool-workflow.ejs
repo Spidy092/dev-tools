@@ -83,11 +83,44 @@
   <div id="log" class="log" aria-live="polite"></div>
 </div>
 
-<div id="download-wrap" class="download-wrap hidden">
-  <div class="done-message"><%= tool.workflow.completeLabel || 'Processing complete!' %></div>
-  <button id="download-btn" class="download-btn" type="button"><%= tool.workflow.downloadLabel || 'Download Result' %></button>
-  <button id="reset-btn" class="reset-btn" type="button"><%= tool.workflow.resetLabel || 'Process more' %></button>
-</div>
+<section id="results-panel" class="results-panel hidden" aria-live="polite">
+  <div class="results-heading">
+    <div>
+      <p class="results-eyebrow">Batch result</p>
+      <h2 id="results-title"><%= tool.workflow.completeLabel || 'Processing complete!' %></h2>
+      <p id="results-subtitle" class="results-subtitle">Your processed result is ready.</p>
+    </div>
+    <span id="results-state" class="results-state results-state-success">Complete</span>
+  </div>
+
+  <div class="results-metrics" aria-label="Processing summary">
+    <div class="result-metric"><span>Successful</span><strong id="result-success-count">0</strong></div>
+    <div class="result-metric"><span>Skipped</span><strong id="result-skipped-count">0</strong></div>
+    <div class="result-metric"><span>Failed</span><strong id="result-failed-count">0</strong></div>
+    <div class="result-metric"><span>Input size</span><strong id="result-input-size">—</strong></div>
+    <div class="result-metric"><span>Output size</span><strong id="result-output-size">—</strong></div>
+    <div class="result-metric"><span>Saved</span><strong id="result-saved-percent">—</strong></div>
+  </div>
+
+  <div class="results-table" role="table" aria-label="File processing results">
+    <div class="results-row results-table-head" role="row">
+      <div role="columnheader">File</div>
+      <div role="columnheader" class="result-status-col">Status</div>
+      <div role="columnheader" class="result-size-col">Input</div>
+      <div role="columnheader" class="result-size-col">Output</div>
+      <div role="columnheader" class="result-saved-col">Saved</div>
+    </div>
+    <div id="results-body" class="results-table-body" role="rowgroup"></div>
+  </div>
+
+  <div class="results-actions">
+    <button id="download-btn" class="download-btn" type="button"><%= tool.workflow.downloadLabel || 'Download Result' %></button>
+    <button id="retry-failed-btn" class="secondary-action hidden" type="button">Retry failed</button>
+    <button id="review-queue-btn" class="secondary-action" type="button">Back to queue</button>
+    <button id="reset-btn" class="reset-btn" type="button"><%= tool.workflow.resetLabel || 'Process more' %></button>
+  </div>
+  <p class="results-download-note">Downloads are provided exactly as the processor returns them. Multi-file jobs are typically packaged as one archive.</p>
+</section>
 
 <script nonce="<%= locals.nonce || '' %>">
   window.toolEndpoint = <%- JSON.stringify(tool.workflow.endpoint) %>;
