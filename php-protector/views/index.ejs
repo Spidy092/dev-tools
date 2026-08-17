@@ -1,55 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('partials/head', { title: 'Developer Tool Suite' }) %>
-  <style>body { align-items: flex-start; justify-content: center; padding-top: 80px; }</style>
+  <%- include('partials/head', { title: 'DevToolkit — Developer Utilities' }) %>
 </head>
 <body>
   <div class="dashboard-container">
-    <%- include('partials/header', { pill: 'DASHBOARD', h1Left: 'Dev', h1Right: 'Toolkit', subtitle: 'Multi-purpose tools for developers. Fast, private, and local.' }) %>
+    <%- include('partials/header', { pill: 'DEVTOOLKIT', h1Left: 'Build faster with', h1Right: 'focused tools', subtitle: 'Process one file, many files, or entire folders with a consistent workflow built for developers.' }) %>
 
-    <div class="dashboard">
+    <div class="enterprise-note">
+      <strong>Privacy:</strong> web tools upload files to this server temporarily for processing. Uploaded job files are automatically cleaned up after processing. Browser-only tools will be labeled separately when added.
+    </div>
+
+    <div class="dashboard" aria-label="Developer tools">
       <a href="/php-protector" class="tool-card">
         <span class="tag">Security</span>
-        <div class="icon">🛡️</div>
+        <div class="icon" aria-hidden="true">🛡️</div>
         <h2>PHP Protector</h2>
-        <p>Obfuscate PHP projects recursively. Preserve directory structure and encrypt source code.</p>
+        <p>Obfuscate PHP projects recursively while preserving project structure. Intended as basic source obfuscation, not encryption.</p>
       </a>
       <a href="/image-resizer" class="tool-card">
         <span class="tag">Images</span>
-        <div class="icon">📐</div>
+        <div class="icon" aria-hidden="true">📐</div>
         <h2>Image Resizer</h2>
-        <p>Professional image resizing with Cover, Contain, and Inside fitting. Recursive folder processing.</p>
+        <p>Resize individual images or whole folders with Cover, Contain, Inside, and smart fitting options.</p>
       </a>
       <a href="/image-converter" class="tool-card">
-        <span class="tag">Optimization</span>
-        <div class="icon">🔄</div>
+        <span class="tag">Images</span>
+        <div class="icon" aria-hidden="true">🔄</div>
         <h2>Image Converter</h2>
-        <p>Convert images to WebP, JPEG, PNG, or AVIF recursively. Dramatically reduce asset sizes.</p>
+        <p>Convert batches between WebP, JPEG, PNG, AVIF, TIFF, and other supported formats.</p>
       </a>
       <a href="/image-compressor" class="tool-card">
-        <span class="tag">Compression</span>
-        <div class="icon">🗜️</div>
+        <span class="tag">Images</span>
+        <div class="icon" aria-hidden="true">🗜️</div>
         <h2>Image Compressor</h2>
-        <p>Shrink any image format — JPEG, PNG, WebP, AVIF, HEIC, TIFF, GIF, SVG. Quality presets + bulk folders.</p>
+        <p>Compress one image, multiple images, or folder structures with quality presets and metadata controls.</p>
       </a>
       <a href="/pdf-compressor" class="tool-card">
-        <span class="tag">Performance</span>
-        <div class="icon">📄</div>
+        <span class="tag">PDF</span>
+        <div class="icon" aria-hidden="true">📄</div>
         <h2>PDF Compressor</h2>
-        <p>Shrink large PDF folders with Ghostscript. Multiple quality levels with structure preservation.</p>
+        <p>Reduce PDF size using guarded Ghostscript presets with support for multi-file and folder workflows.</p>
       </a>
       <a href="/file-renamer" class="tool-card">
-        <span class="tag">Utility</span>
-        <div class="icon">🏷️</div>
+        <span class="tag">Files</span>
+        <div class="icon" aria-hidden="true">🏷️</div>
         <h2>Smart File Renamer</h2>
-        <p>Clean and standardize filenames in bulk. Lowercase, replace spaces, strip special characters.</p>
+        <p>Standardize filenames in bulk with casing, separators, cleanup rules, patterns, and grouping options.</p>
       </a>
       <a href="/code-minifier" class="tool-card">
         <span class="tag">Code</span>
-        <div class="icon">⚡</div>
+        <div class="icon" aria-hidden="true">⚡</div>
         <h2>Code Minifier</h2>
-        <p>Aggressively minify HTML, CSS, and Javascript. Mangle variables and strip whitespace.</p>
+        <p>Minify HTML, CSS, and JavaScript individually or across a complete project while preserving other files.</p>
       </a>
     </div>
   </div>
