@@ -10,6 +10,7 @@ const { minify: minifyJs } = require('terser');
 const { readFileBuffer, createVerifiedReadStream } = require('../../core/processingEngine');
 const { writeZip } = require('../../core/archiveEngine');
 const { RESOURCE_POLICY, totalDeclaredBytes } = require('../../core/resourcePolicy');
+const { decodeUtf8, TextEncodingError } = require('../../core/textCodec');
 const {
   prepareJob,
   sendProgress,
@@ -53,9 +54,10 @@ router.post('/minify', prepareJob, upload.array('files'), enforceTotalSize, vali
   const processBuffer = async (buffer, relativePath) => {
     throwIfCancelled(jobId);
     const ext = path.extname(relativePath).toLowerCase();
+    const source = decodeUtf8(buffer);
     try {
       if ((ext === '.html' || ext === '.htm') && doHtml === 'true') {
-        return Buffer.from(await minifyHtml(buffer.toString('utf8'), {
+        return Buffer.from(await minifyHtml(source, {
           collapseWhitespace: true,
           removeComments: preserveComments !== 'true',
           removeRedundantAttributes: true,
@@ -67,12 +69,11 @@ router.post('/minify', prepareJob, upload.array('files'), enforceTotalSize, vali
         }), 'utf8');
       }
       if (ext === '.css' && doCss === 'true') {
-        const result = new CleanCSS({ level: 2 }).minify(buffer.toString('utf8'));
+        const result = new CleanCSS({ level: 2 }).minify(source);
         if (result.errors?.length) throw new Error(result.errors.join('; '));
         return Buffer.from(result.styles, 'utf8');
       }
       if (ext === '.js' && doJs === 'true') {
-        const source = buffer.toString('utf8');
         const minified = await minifyJs(source, {
           mangle: mangleVariables === 'true',
           compress: true,
@@ -81,6 +82,10 @@ router.post('/minify', prepareJob, upload.array('files'), enforceTotalSize, vali
         if (!minified || typeof minified.code !== 'string') throw new Error('JavaScript minifier returned no output.');
         return Buffer.from(minified.code, 'utf8');
       }
+      return buffer;
+    } catch (error) {
+      if (error instanceof TextEncodingError || error instanceof JobCancelledError) throw error;
+      console.error(`[Minification Error on ${relativePath}]`, error.message);
       return buffer;
     } finally {
       throwIfCancelled(jobId);
@@ -184,6 +189,7 @@ router.post('/minify', prepareJob, upload.array('files'), enforceTotalSize, vali
     console.error('[Minify Error]', err);
     endProgress(jobId, 'failed');
     if (!res.headersSent) {
+      if (err instanceof TextEncodingError) return res.status(422).json({ error: err.message, code: err.code });
       if (err?.code === 'FILE_SIZE_LIMIT') return res.status(413).json({ error: 'A source file exceeds the configured code-processing memory budget.' });
       if (err?.code === 'CORE_BATCH_LIMIT') return res.status(413).json({ error: 'The selected project exceeds the core batch resource budget.' });
       if (['NON_PORTABLE_ARCHIVE_PATH', 'PORTABLE_ARCHIVE_COLLISION', 'ARCHIVE_PATH_TOO_LONG'].includes(err?.code)) return res.status(400).json({ error: err.message });
