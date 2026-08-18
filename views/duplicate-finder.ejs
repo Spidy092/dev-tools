@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'Duplicate File Finder' }) %>
+</head>
+<body>
+  <div class="container" id="main-container">
+    <%- include('partials/header', { pill: 'STORAGE INTELLIGENCE', h1Left: 'Duplicate', h1Right: 'File Finder', subtitle: 'Find exact duplicate files safely with size grouping and SHA-256 verification.' }) %>
+
+    <div id="options-panel">
+      <div class="stats" style="grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        <div class="stat-card">
+          <div class="form-group">
+            <label for="minimumSizeMb">Minimum file size to scan (MB)</label>
+            <input type="number" id="minimumSizeMb" value="0" min="0" max="10240" step="0.1">
+            <input type="hidden" id="minimumSizeBytes" value="0">
+            <p style="font-size:11px;margin-top:5px;color:var(--text-muted)">Set a higher threshold when you only care about large duplicate files.</p>
+          </div>
+        </div>
+        <div class="stat-card" style="text-align:left">
+          <label style="font-weight:600;margin-bottom:15px;display:block">Scan behavior</label>
+          <div class="feature-grid">
+            <label class="feature-opt"><input type="checkbox" id="ignoreEmpty" checked><span>Ignore empty files</span></label>
+          </div>
+          <p style="font-size:11px;margin-top:12px;color:var(--text-muted)">This tool is read-only. It reports duplicates but never deletes files automatically.</p>
+        </div>
+      </div>
+    </div>
+
+    <%- include('partials/tool-workflow', { tool: tool }) %>
+
+    <section id="duplicate-results" class="results-panel hidden" aria-live="polite">
+      <div class="results-heading">
+        <div>
+          <p class="results-eyebrow">Duplicate analysis</p>
+          <h2>Exact duplicate groups</h2>
+          <p id="duplicate-results-subtitle" class="results-subtitle">SHA-256 verified duplicates will appear here.</p>
+        </div>
+        <span id="duplicate-results-state" class="results-state results-state-success">Complete</span>
+      </div>
+      <div class="results-metrics">
+        <div class="result-metric"><span>Files scanned</span><strong id="dup-total-files">0</strong></div>
+        <div class="result-metric"><span>Files hashed</span><strong id="dup-hashed-files">0</strong></div>
+        <div class="result-metric"><span>Duplicate groups</span><strong id="dup-groups">0</strong></div>
+        <div class="result-metric"><span>Extra copies</span><strong id="dup-extra-copies">0</strong></div>
+        <div class="result-metric"><span>Potential recovery</span><strong id="dup-recoverable">0 B</strong></div>
+      </div>
+      <div id="duplicate-groups" class="duplicate-groups"></div>
+      <div class="results-actions">
+        <button id="duplicate-export-btn" class="secondary-action" type="button">Export report JSON</button>
+        <button id="duplicate-back-btn" class="secondary-action" type="button">Back to queue</button>
+      </div>
+      <p class="results-download-note">DevToolkit reports exact byte-for-byte duplicates. Review paths carefully before deleting anything outside the app.</p>
+    </section>
+  </div>
+
+  <%- include('partials/footer') %>
+</body>
+</html>
