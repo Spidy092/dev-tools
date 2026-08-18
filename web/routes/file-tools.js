@@ -6,6 +6,55 @@ const fs = require('fs');
 const { upload, cleanupJob, enforceTotalSize } = require('../multer-setup');
 const { validateUploadedFiles, safeRelativePath } = require('../security');
 const { prepareJob, sendProgress, endProgress, throwIfCancelled, JobCancelledError } = require('./progress');
+const { findDuplicates } = require('../../core/duplicateFinder');
+
+router.post('/duplicates', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
+  const files = req.files || [];
+  const paths = req.safePaths || [];
+  const jobId = req.jobId;
+  const onEnd = () => cleanupJob(jobId);
+  res.on('finish', onEnd);
+  res.on('close', onEnd);
+
+  if (files.length < 2) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'Select at least two files to find duplicates.' });
+  }
+
+  const minimumSize = Math.max(0, Number(req.body.minimumSizeBytes) || 0);
+  const ignoreEmpty = req.body.ignoreEmpty !== 'false';
+  const items = files.map((file, index) => ({
+    filePath: file.path,
+    relativePath: paths[index],
+    size: file.size
+  }));
+
+  try {
+    const report = await findDuplicates(items, {
+      minimumSize,
+      ignoreEmpty,
+      checkCancelled: () => throwIfCancelled(jobId),
+      onHashed: ({ item, size }) => sendProgress(jobId, {
+        event: 'file',
+        file: item.relativePath,
+        type: 'scan',
+        originalSize: size,
+        compressedSize: size
+      })
+    });
+    endProgress(jobId, 'completed');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(report);
+  } catch (err) {
+    if (err instanceof JobCancelledError) {
+      endProgress(jobId, 'cancelled');
+      return res.status(499).json({ error: err.message });
+    }
+    console.error('[Duplicate Finder Error]', err);
+    endProgress(jobId, 'failed');
+    return res.status(500).json({ error: 'Duplicate scan failed.' });
+  }
+});
 
 router.post('/rename', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
   const { casing, separator, strictClean, collapseHyphens, organizeByExtension, renamePattern } = req.body;
