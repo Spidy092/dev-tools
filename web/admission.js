@@ -118,6 +118,7 @@ function admissionMiddleware(kind) {
     }
 
     const signal = getJobSignal(jobId);
+    const queuedAt = Date.now();
     try {
       const lease = await controller.acquire(jobId, {
         ...cost,
@@ -129,9 +130,20 @@ function admissionMiddleware(kind) {
             bytes: cost.bytes,
             files: cost.files,
             position: queue.position,
-            queuedAt: Date.now()
+            queuedAt
           },
           event: { position: queue.position, queuedJobs: queue.queuedJobs }
+        }),
+        onPosition: queue => setJobStatus(jobId, 'queued', {
+          admission: {
+            kind,
+            units: cost.units,
+            bytes: cost.bytes,
+            files: cost.files,
+            position: queue.position,
+            queuedAt
+          },
+          event: { position: queue.position, queuedJobs: queue.queuedJobs, waitedMs: queue.waitedMs }
         }),
         onAdmitted: active => setJobStatus(jobId, 'running', {
           admission: {
