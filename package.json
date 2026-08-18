@@ -1,7 +1,7 @@
 {
-  "name": "php-protector",
+  "name": "devtoolkit",
   "version": "1.0.0",
-  "description": "Bulk-capable developer utilities for files, images, PDFs, code, and PHP obfuscation",
+  "description": "Open-source bulk developer utilities for files, images, PDFs, code, and everyday workflows",
   "main": "web/app.js",
   "engines": {
     "node": ">=18.18"
