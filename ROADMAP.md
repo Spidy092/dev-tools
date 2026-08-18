@@ -69,10 +69,10 @@ Add tools that strengthen the bulk/folder position first.
 ### Files and projects
 
 - [x] Duplicate-file finder using size grouping + streaming SHA-256 verification
-- [ ] Folder manifest generator
-- [ ] File checksum generator/verifier
-- [ ] Line-ending normalizer
-- [ ] Text encoding normalizer/detector
+- [x] Folder manifest generator
+- [x] File checksum generator/verifier
+- [x] Line-ending normalizer
+- [x] Text encoding normalizer/detector
 - [ ] Bulk extension changer with dry-run
 
 ### Images
