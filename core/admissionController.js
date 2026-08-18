@@ -42,6 +42,7 @@ function normalizeRequest(jobId, request, limits) {
     kind: String(request?.kind || 'default').slice(0, 64),
     signal: request?.signal,
     onQueued: typeof request?.onQueued === 'function' ? request.onQueued : null,
+    onPosition: typeof request?.onPosition === 'function' ? request.onPosition : null,
     onAdmitted: typeof request?.onAdmitted === 'function' ? request.onAdmitted : null
   };
 }
@@ -64,10 +65,13 @@ class AdmissionController {
     this.activeUnits = 0;
     this.sequence = 0;
     this.draining = false;
+    this.closed = false;
+    this.closeReason = '';
   }
 
   canRun(entry) {
-    return this.active.size < this.limits.maxActiveJobs &&
+    return !this.closed &&
+      this.active.size < this.limits.maxActiveJobs &&
       this.activeUnits + entry.units <= this.limits.maxActiveUnits &&
       this.activeBytes + entry.bytes <= this.limits.maxActiveBytes;
   }
@@ -79,6 +83,10 @@ class AdmissionController {
   }
 
   acquire(jobId, request = {}) {
+    if (this.closed) {
+      return Promise.reject(new AdmissionError('ADMISSION_SHUTDOWN', `Processing queue is closed: ${this.closeReason || 'shutdown'}.`));
+    }
+
     const normalized = normalizeRequest(jobId, request, this.limits);
     this.assertUnique(normalized.jobId);
 
@@ -120,6 +128,7 @@ class AdmissionController {
         this.cleanupEntry(entry);
         entry.settled = true;
         reject(error);
+        this.notifyQueuePositions();
         this.scheduleDrain();
       };
 
@@ -156,7 +165,22 @@ class AdmissionController {
     entry.abortListener = null;
   }
 
+  notifyQueuePositions() {
+    for (let i = 0; i < this.queue.length; i++) {
+      const entry = this.queue[i];
+      entry.onPosition?.({
+        position: i + 1,
+        queuedJobs: this.queue.length,
+        queuedBytes: this.queuedBytes,
+        waitedMs: Math.max(0, Date.now() - entry.queuedAt)
+      });
+    }
+  }
+
   activate(request) {
+    if (this.closed) {
+      throw new AdmissionError('ADMISSION_SHUTDOWN', `Processing queue is closed: ${this.closeReason || 'shutdown'}.`);
+    }
     const entry = {
       jobId: request.jobId,
       units: request.units,
@@ -201,21 +225,19 @@ class AdmissionController {
   }
 
   chooseNextIndex() {
-    let blockedByStarvation = false;
     for (let i = 0; i < this.queue.length; i++) {
       const entry = this.queue[i];
-      if (this.canRun(entry)) return i;
-      if (entry.bypasses >= this.limits.maxBypasses) {
-        blockedByStarvation = true;
-        break;
+      if (this.canRun(entry)) {
+        for (let skipped = 0; skipped < i; skipped++) this.queue[skipped].bypasses += 1;
+        return i;
       }
-      entry.bypasses += 1;
+      if (entry.bypasses >= this.limits.maxBypasses) return -1;
     }
-    return blockedByStarvation ? -1 : -1;
+    return -1;
   }
 
   drain() {
-    if (this.draining) return;
+    if (this.draining || this.closed) return;
     this.draining = true;
     try {
       while (this.queue.length) {
@@ -224,6 +246,7 @@ class AdmissionController {
         const entry = this.queue.splice(index, 1)[0];
         this.queuedBytes -= entry.bytes;
         this.cleanupEntry(entry);
+        this.notifyQueuePositions();
         if (entry.signal?.aborted) {
           entry.settled = true;
           entry.reject(new AdmissionError('ADMISSION_ABORTED', 'Queued processing was cancelled.'));
@@ -242,7 +265,7 @@ class AdmissionController {
   }
 
   scheduleDrain() {
-    if (this.draining) return;
+    if (this.draining || this.closed) return;
     queueMicrotask(() => this.drain());
   }
 
@@ -254,17 +277,21 @@ class AdmissionController {
     this.cleanupEntry(entry);
     entry.settled = true;
     entry.reject(new AdmissionError('ADMISSION_ABORTED', `Queued processing ${reason}.`));
+    this.notifyQueuePositions();
     this.scheduleDrain();
     return true;
   }
 
   shutdown(reason = 'shutdown') {
+    if (this.closed) return 0;
+    this.closed = true;
+    this.closeReason = String(reason || 'shutdown');
     const queued = this.queue.splice(0, this.queue.length);
     this.queuedBytes = 0;
     for (const entry of queued) {
       this.cleanupEntry(entry);
       entry.settled = true;
-      entry.reject(new AdmissionError('ADMISSION_SHUTDOWN', `Processing queue closed: ${reason}.`));
+      entry.reject(new AdmissionError('ADMISSION_SHUTDOWN', `Processing queue closed: ${this.closeReason}.`));
     }
     return queued.length;
   }
@@ -272,17 +299,25 @@ class AdmissionController {
   snapshot() {
     const now = Date.now();
     const oldest = this.queue.length ? Math.max(0, now - this.queue[0].queuedAt) : 0;
+    const activeKinds = {};
+    const queuedKinds = {};
+    for (const entry of this.active.values()) activeKinds[entry.kind] = (activeKinds[entry.kind] || 0) + 1;
+    for (const entry of this.queue) queuedKinds[entry.kind] = (queuedKinds[entry.kind] || 0) + 1;
     return {
-      accepting: this.queue.length < this.limits.maxQueuedJobs && this.queuedBytes < this.limits.maxQueuedBytes,
+      accepting: !this.closed && this.queue.length < this.limits.maxQueuedJobs && this.queuedBytes < this.limits.maxQueuedBytes,
+      closed: this.closed,
+      closeReason: this.closed ? this.closeReason : null,
       active: {
         jobs: this.active.size,
         units: this.activeUnits,
-        bytes: this.activeBytes
+        bytes: this.activeBytes,
+        kinds: activeKinds
       },
       queued: {
         jobs: this.queue.length,
         bytes: this.queuedBytes,
-        oldestWaitMs: oldest
+        oldestWaitMs: oldest,
+        kinds: queuedKinds
       },
       limits: { ...this.limits }
     };
