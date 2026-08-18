@@ -37,6 +37,16 @@ async function sha256File(filePath, checkCancelled) {
 }
 
 function buildReport(totalFiles, candidateFiles, hashedFiles, sampledFiles, duplicateGroups) {
+  // Backward-compatible helper contract: buildReport(total, candidates, groups).
+  if (Array.isArray(hashedFiles) && duplicateGroups === undefined) {
+    duplicateGroups = hashedFiles;
+    hashedFiles = candidateFiles;
+    sampledFiles = candidateFiles;
+  }
+  duplicateGroups = Array.isArray(duplicateGroups) ? duplicateGroups : [];
+  hashedFiles = Number.isSafeInteger(hashedFiles) ? hashedFiles : 0;
+  sampledFiles = Number.isSafeInteger(sampledFiles) ? sampledFiles : 0;
+
   const duplicateFiles = duplicateGroups.reduce((sum, group) => sum + group.files.length, 0);
   const extraCopies = duplicateGroups.reduce((sum, group) => sum + Math.max(0, group.files.length - 1), 0);
   const recoverableBytes = duplicateGroups.reduce((sum, group) => sum + group.size * Math.max(0, group.files.length - 1), 0);
@@ -82,15 +92,8 @@ async function findDuplicates(items, options = {}) {
 
   for (const [size, group] of sizeGroups) {
     assertActive(ioOptions);
-
-    // A small prefix+suffix fingerprint removes most same-size false candidates
-    // before the expensive full-file SHA-256 pass. Fingerprints never prove
-    // equality; exact duplicates still require a complete SHA-256 match.
     const sampled = await mapLimit(group, async item => {
-      const result = await fingerprintFile(item.filePath, {
-        ...ioOptions,
-        expectedSize: item.size
-      });
+      const result = await fingerprintFile(item.filePath, { ...ioOptions, expectedSize: item.size });
       sampledFiles++;
       options.onSampled?.({ item, fingerprint: result.fingerprint, size });
       return { item, fingerprint: result.fingerprint };
@@ -106,10 +109,7 @@ async function findDuplicates(items, options = {}) {
       if (matches.length < 2) continue;
       assertActive(ioOptions);
       const hashed = await mapLimit(matches, async item => {
-        const result = await hashFile(item.filePath, {
-          ...ioOptions,
-          expectedSize: item.size
-        });
+        const result = await hashFile(item.filePath, { ...ioOptions, expectedSize: item.size });
         hashedFiles++;
         options.onHashed?.({ item, hash: result.hash, size });
         return { item, hash: result.hash };
@@ -124,12 +124,7 @@ async function findDuplicates(items, options = {}) {
       for (const [hash, exactMatches] of hashGroups) {
         if (exactMatches.length < 2) continue;
         const files = exactMatches.map(item => item.relativePath).sort((a, b) => a.localeCompare(b));
-        duplicateGroups.push({
-          hash,
-          size,
-          recoverableBytes: size * (files.length - 1),
-          files
-        });
+        duplicateGroups.push({ hash, size, recoverableBytes: size * (files.length - 1), files });
       }
     }
   }
