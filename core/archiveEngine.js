@@ -91,6 +91,12 @@ function validateEntries(entries, options = {}) {
   });
 }
 
+function assertBufferWithinLimit(buffer, entry, options) {
+  if (Number.isSafeInteger(options.maxBufferBytes) && buffer.length > options.maxBufferBytes) {
+    throw new ProcessingError('ARCHIVE_BUFFER_LIMIT', `Archive entry ${entry.name} exceeds the in-memory buffer limit.`);
+  }
+}
+
 function lazySource(entry, options = {}) {
   async function* generate() {
     assertActive(options);
@@ -107,9 +113,7 @@ function lazySource(entry, options = {}) {
         onBytes: payload => options.onBytes?.({ entry, ...payload })
       });
     } else if (Buffer.isBuffer(entry.buffer)) {
-      if (Number.isSafeInteger(options.maxBufferBytes) && entry.buffer.length > options.maxBufferBytes) {
-        throw new ProcessingError('ARCHIVE_BUFFER_LIMIT', `Archive entry ${entry.name} exceeds the in-memory buffer limit.`);
-      }
+      assertBufferWithinLimit(entry.buffer, entry, options);
       source = entry.buffer;
     } else {
       source = await entry.open();
@@ -117,6 +121,7 @@ function lazySource(entry, options = {}) {
 
     if (Buffer.isBuffer(source) || typeof source === 'string') {
       const chunk = Buffer.isBuffer(source) ? source : Buffer.from(source);
+      assertBufferWithinLimit(chunk, entry, options);
       outputBytes += chunk.length;
       yield chunk;
       assertActive(options);
