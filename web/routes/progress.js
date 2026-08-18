@@ -12,6 +12,7 @@ const MAX_PENDING_EVENTS = Math.min(1000, Math.max(50, Number(process.env.MAX_PE
 const JOB_TTL_MS = Math.max(60_000, Number(process.env.JOB_TTL_MS) || 10 * 60 * 1000);
 const JOB_TIMEOUT_MS = Math.max(10_000, Number(process.env.JOB_TIMEOUT_MS) || 5 * 60 * 1000);
 const PLACEHOLDER_TTL_MS = 30_000;
+const ACTIVE_PHASES = new Set(['uploading', 'queued', 'running', 'cancel_requested']);
 
 class JobCancelledError extends Error {
   constructor(reason = 'cancelled') {
@@ -33,7 +34,7 @@ function terminal(status) {
 function createState(jobId, options = {}) {
   return {
     id: jobId,
-    status: options.placeholder ? 'waiting' : 'running',
+    status: options.placeholder ? 'waiting' : 'uploading',
     placeholder: Boolean(options.placeholder),
     requestKey: options.requestKey || '',
     events: [],
@@ -42,6 +43,7 @@ function createState(jobId, options = {}) {
     ended: false,
     cancelRequested: false,
     cancelReason: '',
+    admission: null,
     controller: new AbortController(),
     timeout: null
   };
@@ -67,6 +69,25 @@ function emitEvent(jobId, data) {
   const client = clients.get(jobId);
   if (client) writeEvent(client, data);
   else queueEvent(state, data);
+  return true;
+}
+
+function setJobStatus(jobId, status, details = {}) {
+  const state = jobs.get(jobId);
+  if (!state || state.ended || terminal(state.status)) return false;
+  if (!ACTIVE_PHASES.has(status)) throw new Error(`Unsupported active job status: ${status}`);
+  if (state.cancelRequested && status !== 'cancel_requested') return false;
+
+  state.status = status;
+  state.placeholder = false;
+  state.updatedAt = Date.now();
+  if (details.admission !== undefined) state.admission = details.admission;
+  emitEvent(jobId, {
+    event: 'state',
+    status,
+    admission: state.admission || undefined,
+    ...details.event
+  });
   return true;
 }
 
@@ -137,15 +158,27 @@ function getJobSignal(jobId) {
 }
 
 function getJobCounts() {
-  let active = 0;
+  const phases = { uploading: 0, queued: 0, running: 0, cancelRequested: 0 };
   let waiting = 0;
   let completed = 0;
+
   for (const state of jobs.values()) {
-    if (state.placeholder && !state.ended) waiting++;
-    else if (!state.ended && !terminal(state.status)) active++;
-    else completed++;
+    if (state.placeholder && !state.ended) {
+      waiting++;
+      continue;
+    }
+    if (state.ended || terminal(state.status)) {
+      completed++;
+      continue;
+    }
+    if (state.status === 'uploading') phases.uploading++;
+    else if (state.status === 'queued') phases.queued++;
+    else if (state.status === 'running') phases.running++;
+    else if (state.status === 'cancel_requested') phases.cancelRequested++;
   }
-  return { active, waiting, retained: jobs.size, completed };
+
+  const active = phases.uploading + phases.queued + phases.running + phases.cancelRequested;
+  return { active, waiting, retained: jobs.size, completed, phases };
 }
 
 function cancelAllActiveJobs(reason = 'shutdown') {
@@ -203,14 +236,16 @@ function prepareJob(req, res, next) {
     jobs.set(jobId, state);
   } else {
     state.placeholder = false;
-    state.status = 'running';
+    state.status = 'uploading';
     state.requestKey = requestKey;
+    state.admission = null;
     state.updatedAt = Date.now();
   }
 
   if (requestKey) activeRequestKeys.set(requestKey, jobId);
   req.jobId = jobId;
   res.setHeader('X-Job-Id', jobId);
+  emitEvent(jobId, { event: 'state', status: 'uploading' });
 
   state.timeout = setTimeout(() => {
     if (cancelJob(jobId, 'timeout')) {
@@ -247,6 +282,7 @@ router.get('/:jobId/status', (req, res) => {
     status: state.status,
     cancelRequested: state.cancelRequested,
     reason: state.cancelReason || null,
+    admission: state.admission,
     createdAt: state.createdAt,
     updatedAt: state.updatedAt
   });
@@ -342,6 +378,7 @@ module.exports = {
   createJobId,
   sendProgress,
   endProgress,
+  setJobStatus,
   cancelJob,
   cancelAllActiveJobs,
   closeProgressClients,
@@ -349,6 +386,7 @@ module.exports = {
   isJobCancelled,
   throwIfCancelled,
   getJobSignal,
+  stateFor,
   JobCancelledError,
   JOB_ID_RE
 };
