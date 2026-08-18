@@ -122,6 +122,33 @@ test('Smart File Renamer returns the requested renamed filename', async t => {
   assert.equal(await response.text(), 'hello');
 });
 
+test('Duplicate File Finder returns only exact SHA-256 duplicate groups', async t => {
+  const base = await startApp(t);
+  const form = new FormData();
+  const inputs = [
+    ['same-a.txt', 'folder/same-a.txt', 'same'],
+    ['same-b.txt', 'folder/copy/same-b.txt', 'same'],
+    ['different.txt', 'folder/different.txt', 'diff']
+  ];
+  inputs.forEach(([name, relativePath, content]) => {
+    form.append('files', new Blob([Buffer.from(content)]), name);
+    form.append('paths', relativePath);
+  });
+  form.append('minimumSizeBytes', '0');
+  form.append('ignoreEmpty', 'true');
+
+  const response = await postForm(base, '/file-tools/duplicates', form);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type') || '', /application\/json/);
+  const payload = await response.json();
+  assert.equal(payload.totalFiles, 3);
+  assert.equal(payload.duplicateGroups, 1);
+  assert.equal(payload.extraCopies, 1);
+  assert.equal(payload.recoverableBytes, 4);
+  assert.deepEqual(payload.groups[0].files.sort(), ['folder/copy/same-b.txt', 'folder/same-a.txt']);
+  assert.match(payload.groups[0].hash, /^[a-f0-9]{64}$/);
+});
+
 test('Code Minifier minifies JavaScript content', async t => {
   const base = await startApp(t);
   const source = 'function add(a, b) { return a + b; } console.log(add(1, 2));';
