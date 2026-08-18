@@ -1,9 +1,9 @@
 const fsp = require('fs').promises;
 const path = require('path');
-const { TextDecoder } = require('util');
 const { walkDir } = require('./utils');
 const { readFileBuffer } = require('./processingEngine');
 const { RESOURCE_POLICY } = require('./resourcePolicy');
+const { decodeUtf8, TextEncodingError } = require('./textCodec');
 
 class PhpSourceError extends Error {
   constructor(code, message, cause) {
@@ -24,15 +24,24 @@ function obfuscateCode(code) {
 }
 
 function decodePhpSource(buffer) {
-  if (!Buffer.isBuffer(buffer)) throw new TypeError('PHP source must be a Buffer.');
-  if (buffer.includes(0)) throw new PhpSourceError('PHP_BINARY_INPUT', 'PHP source contains null bytes and will not be obfuscated.');
-  if (buffer.length >= 2 && ((buffer[0] === 0xff && buffer[1] === 0xfe) || (buffer[0] === 0xfe && buffer[1] === 0xff))) {
-    throw new PhpSourceError('PHP_UNSUPPORTED_ENCODING', 'PHP Protector accepts UTF-8 source only.');
-  }
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+    return decodeUtf8(buffer);
   } catch (error) {
-    throw new PhpSourceError('PHP_INVALID_UTF8', 'PHP Protector accepts valid UTF-8 source only.', error);
+    if (error instanceof TextEncodingError) {
+      const map = {
+        TEXT_BINARY_INPUT: 'PHP_BINARY_INPUT',
+        TEXT_UNSUPPORTED_ENCODING: 'PHP_UNSUPPORTED_ENCODING',
+        TEXT_INVALID_UTF8: 'PHP_INVALID_UTF8'
+      };
+      throw new PhpSourceError(map[error.code] || 'PHP_INVALID_SOURCE',
+        error.code === 'TEXT_UNSUPPORTED_ENCODING'
+          ? 'PHP Protector accepts UTF-8 source only.'
+          : error.code === 'TEXT_BINARY_INPUT'
+            ? 'PHP source contains null bytes and will not be obfuscated.'
+            : 'PHP Protector accepts valid UTF-8 source only.',
+        error);
+    }
+    throw error;
   }
 }
 
