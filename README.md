@@ -11,7 +11,7 @@ DevToolkit is built for the point where tiny online utilities become annoying: *
 
 Instead of learning a different interface for every utility, DevToolkit uses one workflow:
 
-**Select → Review → Configure → Process → Results**
+**Select → Review → Configure → Preview → Process → Results**
 
 It supports single files, multiple files, and complete folders. The application uses **Express + EJS + modular vanilla JavaScript** to stay approachable for contributors.
 
@@ -21,13 +21,17 @@ It supports single files, multiple files, and complete folders. The application 
 
 Many developer utilities are excellent for one text box or one file. DevToolkit is designed to make the same operation practical across dozens, hundreds, or thousands of files where the processor supports it.
 
-### Review before processing
+### Understand the folder before acting
 
-Users can inspect the queue, search it, include/exclude files, and configure an operation before processing begins. The roadmap expands this into universal dry-run previews for mutating tools.
+Folder Intelligence summarizes file count, total size, folders, top extensions, largest files, and useful file groups before processing. Dry-run previews then show the planned impact before the operation starts.
+
+### Reusable settings
+
+Per-tool presets can be saved locally, reapplied, exported, and imported as versioned JSON without accounts or cloud storage.
 
 ### One consistent interface
 
-A file renamer, image converter, PDF processor, and code tool should not feel like four unrelated products. DevToolkit keeps the same workflow and result model across the catalog.
+A file renamer, duplicate scanner, image converter, PDF processor, and code tool should not feel like unrelated products. DevToolkit keeps the same queue, review, preview, progress, and result concepts across the catalog.
 
 ### Self-hostable
 
@@ -55,9 +59,22 @@ Expected public URL after Pages is enabled and this branch reaches `main`:
 | Image Compressor | Compresses and optimizes images | Yes |
 | PDF Compressor | Compresses PDFs through guarded Ghostscript execution | Yes |
 | Smart File Renamer | Applies reusable rename and organization rules | Yes |
+| Duplicate File Finder | Finds exact duplicate files with size grouping + streaming SHA-256 verification | Yes |
 | Code Minifier | Minifies HTML, CSS, and JavaScript | Yes |
 
 > PHP Protector performs **obfuscation, not cryptographic encryption**.
+
+## Duplicate detection design
+
+Duplicate File Finder is intentionally read-only. It never removes files automatically.
+
+1. Files are grouped by byte size.
+2. Unique-size files are skipped without hashing.
+3. Only likely duplicate candidates are streamed through SHA-256.
+4. Files are reported as duplicates only when both size and SHA-256 match.
+5. Recoverable storage is calculated from extra copies while preserving one copy per group.
+
+Hashing streams files from disk rather than loading complete large files into Node memory.
 
 ## Product direction
 
@@ -148,7 +165,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Privacy
 
-Files selected in the web app are uploaded temporarily to the running DevToolkit server for processing. They are **not processed purely in your browser**. Runtime upload/temp directories are cleaned automatically and ignored by Git.
+Files selected for server-processed tools are uploaded temporarily to the running DevToolkit server and cleaned automatically. Folder Intelligence and dry-run metadata analysis are client-side. Presets are browser-local unless the user explicitly exports them.
 
 For sensitive workloads, self-host DevToolkit in an environment you control.
 
