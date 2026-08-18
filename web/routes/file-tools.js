@@ -7,14 +7,89 @@ const { upload, cleanupJob, enforceTotalSize } = require('../multer-setup');
 const { validateUploadedFiles, safeRelativePath } = require('../security');
 const { prepareJob, sendProgress, endProgress, throwIfCancelled, JobCancelledError } = require('./progress');
 const { findDuplicates } = require('../../core/duplicateFinder');
+const { generateManifest, verifyManifest, toChecksumText } = require('../../core/checksumManifest');
+
+function attachCleanup(res, jobId) {
+  const onEnd = () => cleanupJob(jobId);
+  res.on('finish', onEnd);
+  res.on('close', onEnd);
+}
+
+function manifestItems(files, paths) {
+  return files.map((file, index) => ({ filePath: file.path, relativePath: paths[index], size: file.size }));
+}
+
+router.post('/checksums/generate', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
+  const files = req.files || [];
+  const paths = req.safePaths || [];
+  const jobId = req.jobId;
+  attachCleanup(res, jobId);
+
+  try {
+    const manifest = await generateManifest(manifestItems(files, paths), {
+      checkCancelled: () => throwIfCancelled(jobId),
+      onHashed: ({ item, size }) => sendProgress(jobId, { event: 'file', file: item.relativePath, type: 'scan', originalSize: size, compressedSize: size })
+    });
+    const output = String(req.body.outputFormat || 'json').toLowerCase();
+    endProgress(jobId, 'completed');
+    res.setHeader('Cache-Control', 'no-store');
+    if (output === 'sha256') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="checksums.sha256"');
+      return res.send(toChecksumText(manifest));
+    }
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="manifest.json"');
+    return res.json(manifest);
+  } catch (err) {
+    if (err instanceof JobCancelledError) {
+      endProgress(jobId, 'cancelled');
+      return res.status(499).json({ error: err.message });
+    }
+    console.error('[Checksum Generate Error]', err);
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: err.message || 'Checksum generation failed.' });
+  }
+});
+
+router.post('/checksums/verify', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
+  const files = req.files || [];
+  const paths = req.safePaths || [];
+  const jobId = req.jobId;
+  attachCleanup(res, jobId);
+
+  let manifest;
+  try {
+    manifest = JSON.parse(String(req.body.manifestJson || ''));
+  } catch (_error) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'Manifest JSON is missing or invalid.' });
+  }
+
+  try {
+    const report = await verifyManifest(manifestItems(files, paths), manifest, {
+      checkCancelled: () => throwIfCancelled(jobId),
+      onHashed: ({ item, size }) => sendProgress(jobId, { event: 'file', file: item.relativePath, type: 'scan', originalSize: size, compressedSize: size })
+    });
+    endProgress(jobId, 'completed');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(report);
+  } catch (err) {
+    if (err instanceof JobCancelledError) {
+      endProgress(jobId, 'cancelled');
+      return res.status(499).json({ error: err.message });
+    }
+    console.error('[Checksum Verify Error]', err);
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: err.message || 'Manifest verification failed.' });
+  }
+});
 
 router.post('/duplicates', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
   const files = req.files || [];
   const paths = req.safePaths || [];
   const jobId = req.jobId;
-  const onEnd = () => cleanupJob(jobId);
-  res.on('finish', onEnd);
-  res.on('close', onEnd);
+  attachCleanup(res, jobId);
 
   if (files.length < 2) {
     endProgress(jobId, 'failed');
@@ -23,11 +98,7 @@ router.post('/duplicates', prepareJob, upload.array('files'), enforceTotalSize, 
 
   const minimumSize = Math.max(0, Number(req.body.minimumSizeBytes) || 0);
   const ignoreEmpty = req.body.ignoreEmpty !== 'false';
-  const items = files.map((file, index) => ({
-    filePath: file.path,
-    relativePath: paths[index],
-    size: file.size
-  }));
+  const items = manifestItems(files, paths);
 
   try {
     const report = await findDuplicates(items, {
@@ -61,9 +132,7 @@ router.post('/rename', prepareJob, upload.array('files'), enforceTotalSize, vali
   const files = req.files || [];
   const paths = req.safePaths || [];
   const jobId = req.jobId;
-  const onEnd = () => cleanupJob(jobId);
-  res.on('finish', onEnd);
-  res.on('close', onEnd);
+  attachCleanup(res, jobId);
 
   if (!files.length) {
     endProgress(jobId, 'failed');
