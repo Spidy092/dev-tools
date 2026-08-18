@@ -17,6 +17,17 @@
     var previewValid = false;
     var MAX_PREVIEW_ROWS = 100;
 
+    function selectedCountFromSummary() {
+      var el = document.getElementById('queue-selected-count');
+      var match = el && el.textContent.match(/(\d+)/);
+      return match ? Number(match[1]) : 0;
+    }
+
+    function syncPreviewLabel() {
+      var count = selectedCountFromSummary();
+      proceedBtn.textContent = 'Preview changes' + (count ? ' (' + count + ')' : '');
+    }
+
     function collectOptions() {
       var options = {};
       document.querySelectorAll('#options-panel input, #options-panel select').forEach(function (input) {
@@ -35,12 +46,6 @@
         var path = row.querySelector('.queue-file span');
         return { path: path ? path.textContent.trim() : 'file' };
       });
-    }
-
-    function selectedCountFromSummary() {
-      var el = document.getElementById('queue-selected-count');
-      var match = el && el.textContent.match(/(\d+)/);
-      return match ? Number(match[1]) : 0;
     }
 
     function renderRow(row) {
@@ -97,6 +102,7 @@
       previewValid = false;
       panel.classList.add('hidden');
       if (queuePanel) queuePanel.classList.remove('preview-open');
+      setTimeout(syncPreviewLabel, 0);
     }
 
     proceedBtn.addEventListener('click', function (event) {
@@ -119,6 +125,10 @@
     document.addEventListener('change', function (event) {
       if (event.target && (event.target.closest('#options-panel') || event.target.closest('#file-tree-panel'))) invalidatePreview();
     });
+
+    var countEl = document.getElementById('queue-selected-count');
+    if (countEl && window.MutationObserver) new MutationObserver(syncPreviewLabel).observe(countEl, { childList: true, characterData: true, subtree: true });
+    syncPreviewLabel();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initPreviewUi); else initPreviewUi();
 })();
