@@ -215,6 +215,7 @@ function createVerifiedReadStream(filePath, options = {}) {
         yield bytesRead === chunk.length ? chunk : chunk.subarray(0, bytesRead);
       }
       await verifyUnchanged(handle, stat, position, options);
+      options.onComplete?.({ bytes: position, stat });
     } finally {
       await handle.close().catch(() => {});
     }
