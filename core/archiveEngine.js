@@ -6,8 +6,9 @@ const { ProcessingError, assertActive, createVerifiedReadStream } = require('./p
 const DEFAULT_MAX_ENTRIES = 10000;
 const DEFAULT_COMPRESSION_LEVEL = 6;
 const ZIP_SAFE_EPOCH = new Date('1980-01-01T00:00:00.000Z');
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 
-function normalizeArchivePath(value) {
+function normalizeArchivePath(value, options = {}) {
   const raw = String(value || '').replace(/\\/g, '/');
   if (!raw || raw.startsWith('/') || /^[a-zA-Z]:\//.test(raw) || raw.includes('\0')) {
     throw new ProcessingError('INVALID_ARCHIVE_PATH', 'Archive entry path is invalid.');
@@ -16,7 +17,24 @@ function normalizeArchivePath(value) {
   if (!segments.length || segments.some(segment => segment === '.' || segment === '..' || /[\x00-\x1F\x7F]/.test(segment))) {
     throw new ProcessingError('INVALID_ARCHIVE_PATH', 'Archive entry path is invalid.');
   }
-  return segments.join('/');
+
+  const portable = options.portable !== false;
+  if (portable) {
+    for (const segment of segments) {
+      if (/[<>:"|?*]/.test(segment) || /[. ]$/.test(segment) || WINDOWS_RESERVED.test(segment)) {
+        throw new ProcessingError('NON_PORTABLE_ARCHIVE_PATH', `Archive entry is not portable across operating systems: ${segment}`);
+      }
+      if (Buffer.byteLength(segment, 'utf8') > 255) {
+        throw new ProcessingError('ARCHIVE_PATH_TOO_LONG', 'Archive entry contains a path segment longer than 255 UTF-8 bytes.');
+      }
+    }
+  }
+
+  const normalized = segments.join('/');
+  if (Buffer.byteLength(normalized, 'utf8') > 4096) {
+    throw new ProcessingError('ARCHIVE_PATH_TOO_LONG', 'Archive entry path exceeds 4096 UTF-8 bytes.');
+  }
+  return normalized;
 }
 
 function normalizeCompressionLevel(value) {
@@ -33,6 +51,7 @@ function validateEntries(entries, options = {}) {
   if (entries.length > maxEntries) throw new ProcessingError('TOO_MANY_ARCHIVE_ENTRIES', `Archive exceeds the ${maxEntries} entry limit.`);
 
   const seen = new Set();
+  const portableSeen = new Set();
   let declaredBytes = 0;
   const maxTotalBytes = Number.isSafeInteger(options.maxTotalBytes) && options.maxTotalBytes >= 0 ? options.maxTotalBytes : undefined;
 
@@ -40,9 +59,17 @@ function validateEntries(entries, options = {}) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
       throw new ProcessingError('INVALID_ARCHIVE_ENTRY', `Archive entry ${index + 1} is invalid.`);
     }
-    const name = normalizeArchivePath(entry.name);
+    const name = normalizeArchivePath(entry.name, options);
     if (seen.has(name)) throw new ProcessingError('DUPLICATE_ARCHIVE_PATH', `Duplicate archive entry path: ${name}`);
     seen.add(name);
+
+    if (options.portable !== false) {
+      const folded = name.toLocaleLowerCase('en-US');
+      if (portableSeen.has(folded)) {
+        throw new ProcessingError('PORTABLE_ARCHIVE_COLLISION', `Archive paths collide on a case-insensitive filesystem: ${name}`);
+      }
+      portableSeen.add(folded);
+    }
 
     const size = entry.size === undefined ? undefined : Number(entry.size);
     if (size !== undefined && (!Number.isSafeInteger(size) || size < 0)) {
