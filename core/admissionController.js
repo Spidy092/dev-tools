@@ -76,7 +76,6 @@ class AdmissionController {
     try {
       callback(payload);
     } catch (_) {
-      // Scheduler state must never depend on progress/metrics observers.
       this.observerErrors += 1;
     }
   }
@@ -325,9 +324,9 @@ class AdmissionController {
       this.active.size < this.limits.maxActiveJobs &&
       this.activeUnits < this.limits.maxActiveUnits &&
       this.activeBytes < this.limits.maxActiveBytes;
-    const queueCapacity = !this.closed && this.limits.maxQueuedJobs > 0 &&
+    const queueCapacity = !this.closed && this.limits.maxQueuedJobs > 0 && this.limits.maxQueuedBytes > 0 &&
       this.queue.length < this.limits.maxQueuedJobs &&
-      this.queuedBytes <= this.limits.maxQueuedBytes;
+      this.queuedBytes < this.limits.maxQueuedBytes;
 
     return {
       accepting: immediateCapacity || queueCapacity,
