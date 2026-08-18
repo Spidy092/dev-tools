@@ -14,8 +14,8 @@ Our differentiators should be:
 2. **Preview before mutation** — users should be able to understand what will change before processing.
 3. **Repeatable workflows** — save/reuse tool settings and eventually compose multi-step workflows.
 4. **Self-hostable and open source** — teams can run it in an environment they control.
-5. **Consistent UX** — Select → Review → Configure → Process → Results across the catalog.
-6. **Honest privacy** — clearly distinguish server-side processing from future browser-local tools.
+5. **Consistent UX** — Select → Review → Configure → Preview → Process → Results across the catalog.
+6. **Honest privacy** — clearly distinguish server-side processing from browser-local analysis.
 
 ## Phase 1 — Launch-quality foundation
 
@@ -39,25 +39,26 @@ Our differentiators should be:
 
 ### Preview and safety
 
-- [ ] Universal dry-run/preview contract for mutating tools
-- [ ] Rename preview showing old path → new path before execution
-- [ ] Image before/after preview with output size estimate
+- [x] Shared dry-run/preview contract before processing
+- [x] Rename preview showing old path → new path before execution
+- [ ] Image before/after visual preview with output size estimate
 - [ ] Minifier diff/size preview
 - [ ] PDF expected-quality/size guidance
-- [ ] Collision detection and conflict-resolution UI for file outputs
+- [x] Collision detection and conflict-resolution preview for file outputs
 
 ### Reusable work
 
-- [ ] Save named presets per tool
-- [ ] Export/import presets as JSON
+- [x] Save named presets per tool
+- [x] Export/import presets as versioned JSON
 - [ ] Recent-job configuration history without storing uploaded file contents
 - [ ] Copy/share a tool configuration link when settings are URL-safe
 
 ### Better large-folder experience
 
-- [ ] Folder summary before processing: file counts, total bytes, extensions
-- [ ] Group/filter queue by extension and directory
-- [ ] Select by glob/pattern
+- [x] Folder summary before processing: file counts, total bytes, extensions, largest files
+- [x] Quick grouping/selection by major file type and large files
+- [ ] Group/filter queue by directory
+- [ ] Select by glob/pattern beyond exclusion rules
 - [ ] Per-folder result summaries
 - [ ] Stream large result archives instead of retaining large blobs in browser memory
 
@@ -67,7 +68,7 @@ Add tools that strengthen the bulk/folder position first.
 
 ### Files and projects
 
-- [ ] Duplicate-file finder using checksums
+- [x] Duplicate-file finder using size grouping + streaming SHA-256 verification
 - [ ] Folder manifest generator
 - [ ] File checksum generator/verifier
 - [ ] Line-ending normalizer
@@ -122,9 +123,9 @@ Planned capabilities:
 
 ## Privacy direction
 
-Competitors have strong offline/browser-local privacy stories. DevToolkit currently performs most file processing on its server, so we should be transparent and improve this over time.
-
-- [ ] Label every tool as **browser-local** or **server-processed**
+- [ ] Label every tool visibly as **browser-local** or **server-processed**
+- [x] Keep folder intelligence and dry-run metadata analysis client-side
+- [x] Keep presets browser-local by default
 - [ ] Move safe lightweight text/data utilities client-side where practical
 - [ ] Add a privacy status indicator on every tool page
 - [ ] Document temp-file lifecycle visibly in the product
