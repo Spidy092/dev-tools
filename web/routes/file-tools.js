@@ -8,6 +8,7 @@ const { validateUploadedFiles, safeRelativePath } = require('../security');
 const { prepareJob, sendProgress, endProgress, throwIfCancelled, JobCancelledError } = require('./progress');
 const { findDuplicates } = require('../../core/duplicateFinder');
 const { generateManifest, verifyManifest, toChecksumText } = require('../../core/checksumManifest');
+const { normalizeBuffer } = require('../../core/textNormalizer');
 
 function attachCleanup(res, jobId) {
   const onEnd = () => cleanupJob(jobId);
@@ -124,6 +125,79 @@ router.post('/duplicates', prepareJob, upload.array('files'), enforceTotalSize, 
     console.error('[Duplicate Finder Error]', err);
     endProgress(jobId, 'failed');
     return res.status(500).json({ error: 'Duplicate scan failed.' });
+  }
+});
+
+router.post('/normalize-text', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
+  const files = req.files || [];
+  const paths = req.safePaths || [];
+  const jobId = req.jobId;
+  attachCleanup(res, jobId);
+
+  const lineEnding = String(req.body.lineEnding || 'lf').toLowerCase();
+  const encodingMode = String(req.body.encodingMode || 'utf8').toLowerCase();
+  if (!['preserve', 'lf', 'crlf'].includes(lineEnding) || !['preserve', 'utf8', 'utf8-bom'].includes(encodingMode)) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'Unsupported normalization settings.' });
+  }
+
+  const processOne = async (file, relativePath) => {
+    throwIfCancelled(jobId);
+    const input = await fs.promises.readFile(file.path);
+    throwIfCancelled(jobId);
+    const result = normalizeBuffer(input, { lineEnding, encodingMode });
+    sendProgress(jobId, {
+      event: 'file',
+      file: relativePath,
+      type: result.skipped ? 'skip' : 'process',
+      originalSize: input.length,
+      compressedSize: result.output.length,
+      changed: result.changed,
+      sourceEncoding: result.sourceEncoding,
+      outputEncoding: result.outputEncoding,
+      sourceLineEnding: result.sourceLineEnding,
+      outputLineEnding: result.outputLineEnding,
+      reason: result.reason
+    });
+    return result;
+  };
+
+  try {
+    if (files.length === 1) {
+      const result = await processOne(files[0], paths[0]);
+      endProgress(jobId, 'completed');
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(paths[0])}"`);
+      return res.send(result.output);
+    }
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="normalized-${Date.now()}.zip"`);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.on('error', err => {
+      console.error('[Normalize Archive Error]', err);
+      endProgress(jobId, 'failed');
+      if (!res.headersSent) res.status(500).json({ error: 'Archive failed' });
+    });
+    archive.pipe(res);
+
+    for (let i = 0; i < files.length; i++) {
+      const result = await processOne(files[i], paths[i]);
+      archive.append(result.output, { name: safeRelativePath(paths[i]) });
+    }
+    endProgress(jobId, 'completed');
+    archive.finalize();
+  } catch (err) {
+    if (err instanceof JobCancelledError) {
+      endProgress(jobId, 'cancelled');
+      if (!res.headersSent) return res.status(499).json({ error: err.message });
+      if (!res.writableEnded) res.end();
+      return;
+    }
+    console.error('[Text Normalizer Error]', err);
+    endProgress(jobId, 'failed');
+    if (!res.headersSent) return res.status(500).json({ error: 'Text normalization failed.' });
+    if (!res.writableEnded) res.end();
   }
 });
 
