@@ -45,18 +45,16 @@
 
     groupsEl.replaceChildren();
     (report.groups || []).forEach(function (group, index) {
-      var card = document.createElement('article');
-      card.className = 'duplicate-group-card';
-
-      var header = document.createElement('div');
-      header.className = 'duplicate-group-heading';
+      var card = document.createElement('article'); card.className = 'duplicate-group-card';
+      var header = document.createElement('div'); header.className = 'duplicate-group-heading';
       var title = document.createElement('div');
       var eyebrow = document.createElement('span'); eyebrow.textContent = 'GROUP ' + (index + 1);
       var strong = document.createElement('strong'); strong.textContent = group.files.length + ' identical files';
       title.append(eyebrow, strong);
       var recovery = document.createElement('div'); recovery.className = 'duplicate-recovery';
-      recovery.innerHTML = '<span>Recoverable</span><strong>' + formatSize(group.recoverableBytes || 0) + '</strong>';
-      header.append(title, recovery);
+      var recoveryLabel = document.createElement('span'); recoveryLabel.textContent = 'Recoverable';
+      var recoveryValue = document.createElement('strong'); recoveryValue.textContent = formatSize(group.recoverableBytes || 0);
+      recovery.append(recoveryLabel, recoveryValue); header.append(title, recovery);
 
       var meta = document.createElement('div'); meta.className = 'duplicate-group-meta';
       var hash = document.createElement('code'); hash.textContent = 'SHA-256 ' + String(group.hash || '').slice(0, 20) + '…';
@@ -82,10 +80,6 @@
     var response = await originalFetch(input, init);
     if (url.indexOf('/file-tools/duplicates') !== -1 && response.ok) {
       response.clone().json().then(renderReport).catch(function () {});
-      setTimeout(function () {
-        var generic = document.getElementById('results-panel');
-        if (generic) generic.classList.add('hidden');
-      }, 0);
     }
     return response;
   };
@@ -98,7 +92,7 @@
     bytes.value = String(Math.floor(value * 1024 * 1024));
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
+  function initControls() {
     var mb = document.getElementById('minimumSizeMb');
     if (mb) { mb.addEventListener('input', syncMinimumSize); mb.addEventListener('change', syncMinimumSize); }
     syncMinimumSize();
@@ -118,7 +112,10 @@
       var queue = document.getElementById('file-tree-panel');
       if (panel) panel.classList.add('hidden');
       if (queue) queue.classList.remove('hidden');
-      queue && queue.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (queue) queue.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-  });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initControls);
+  else initControls();
 })();
