@@ -35,6 +35,11 @@ const TOOLS = Object.freeze([
     workflow: { endpoint: '/file-tools/duplicates', resultMode: 'json', dropTitle: 'Drop a project or storage folder here', dropSubtitle: 'Files are grouped by size first, then likely matches are verified with SHA-256.', browseLabel: 'Browse folder', excludePlaceholder: 'e.g. node_modules/*, .git/*, cache/*', processLabel: 'Find Duplicates', progressLabel: 'Hashing likely duplicates…', completeLabel: 'Duplicate scan complete!', resetLabel: 'Scan another folder', stats: [{ id: 'total', label: 'Files queued' }, { id: 'done', label: 'Hashed' }] }
   },
   {
+    id: 'checksum-manifest', name: 'Checksum & Manifest', category: 'Files', icon: '🔐', route: '/checksum-manifest', view: 'checksum-manifest',
+    description: 'Generate SHA-256 manifests for projects and verify later snapshots for changed, missing, new, or valid files.', keywords: ['checksum', 'sha256', 'manifest', 'verify', 'integrity', 'files'],
+    workflow: { endpoint: '/file-tools/checksums/generate', resultMode: 'json', dropTitle: 'Drop a project folder here', dropSubtitle: 'Generate SHA-256 checksums or verify this folder against a saved DevToolkit manifest.', browseLabel: 'Browse project', excludePlaceholder: 'e.g. node_modules/*, .git/*, dist/*', processLabel: 'Generate Manifest', progressLabel: 'Hashing selected files…', completeLabel: 'Checksum operation complete!', resetLabel: 'Check another project', stats: [{ id: 'total', label: 'Files queued' }, { id: 'done', label: 'Hashed' }] }
+  },
+  {
     id: 'code-minifier', name: 'Code Minifier', category: 'Code', icon: '⚡', route: '/code-minifier', view: 'code-minifier',
     description: 'Minify HTML, CSS, and JavaScript individually or across projects.', keywords: ['code', 'minify', 'html', 'css', 'javascript'],
     workflow: { endpoint: '/minify-tools/minify', dropTitle: 'Drop your codebase here', dropSubtitle: 'Review the project before minifying selected file types.', browseLabel: 'Browse project', excludePlaceholder: 'e.g. node_modules/*, *.min.js', processLabel: 'Minify Files', progressLabel: 'Minifying code…', completeLabel: 'Minification complete!', downloadLabel: 'Download Result', resetLabel: 'Minify more', stats: [{ id: 'total', label: 'Files queued' }, { id: 'done', label: 'Processed' }] }
