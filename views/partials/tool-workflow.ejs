@@ -59,9 +59,28 @@
         <strong id="queue-selected-count">0 selected</strong>
         <span id="queue-selected-size">0 B</span>
       </div>
-      <button id="proceed-btn" class="browse-btn tool-primary-action" type="button" disabled><%= tool.workflow.processLabel || 'Process Files' %></button>
+      <button id="proceed-btn" class="browse-btn tool-primary-action" type="button" disabled>Preview changes</button>
     </div>
   </div>
+
+  <section id="preview-panel" class="preview-panel hidden" aria-live="polite">
+    <div class="preview-heading">
+      <div>
+        <p class="queue-eyebrow">Dry run</p>
+        <h2>Preview changes before processing</h2>
+        <p id="preview-summary" class="queue-summary">Review what this operation will do.</p>
+      </div>
+      <span class="preview-badge">Nothing has changed yet</span>
+    </div>
+    <div id="preview-stats" class="preview-stats"></div>
+    <div id="preview-warnings" class="preview-warnings"></div>
+    <div class="preview-table-head"><span>Input</span><span></span><span>Planned output</span></div>
+    <div id="preview-body" class="preview-body"></div>
+    <div class="preview-actions">
+      <button id="preview-back-btn" class="secondary-action" type="button">Back to queue</button>
+      <button id="preview-confirm-btn" class="browse-btn" type="button"><%= tool.workflow.processLabel || 'Process Files' %></button>
+    </div>
+  </section>
 </section>
 
 <div id="stats" class="stats hidden">
