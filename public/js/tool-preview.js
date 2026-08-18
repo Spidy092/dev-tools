@@ -16,16 +16,10 @@
     var hasExt = dot > 0;
     return { dir: dir, base: file, name: hasExt ? file.slice(0, dot) : file, ext: hasExt ? file.slice(dot) : '' };
   }
-  function patternName(pattern, original, index) {
-    return String(pattern || '').replace(/{name}/g, original).replace(/{index}/g, index + 1);
-  }
+  function patternName(pattern, original, index) { return String(pattern || '').replace(/{name}/g, original).replace(/{index}/g, index + 1); }
   function makeUnique(candidate, used) {
     var finalPath = candidate; var counter = 1;
-    while (used.has(finalPath)) {
-      var p = parse(candidate);
-      finalPath = join(p.dir, p.name + '-' + counter + p.ext);
-      counter++;
-    }
+    while (used.has(finalPath)) { var p = parse(candidate); finalPath = join(p.dir, p.name + '-' + counter + p.ext); counter++; }
     used.add(finalPath); return finalPath;
   }
   function sanitizeRenameName(name, options) {
@@ -68,13 +62,12 @@
       var name = options.renamePattern ? patternName(options.renamePattern, p.name, index) : p.name;
       return { output: join(p.dir, name + '.' + target), skipped: false };
     }
-    if (toolId === 'image-resizer' && options.renamePattern) {
-      return { output: join(p.dir, patternName(options.renamePattern, p.name, index) + p.ext), skipped: false };
-    }
+    if (toolId === 'image-resizer' && options.renamePattern) return { output: join(p.dir, patternName(options.renamePattern, p.name, index) + p.ext), skipped: false };
     return { output: normalize(pathname), skipped: false };
   }
   function operationSummary(toolId, options) {
     if (toolId === 'file-renamer') return 'Apply naming rules and package renamed results';
+    if (toolId === 'duplicate-finder') return 'Read-only scan: group files by size, then SHA-256 hash only likely duplicate candidates';
     if (toolId === 'image-converter') return 'Convert supported images to ' + String(options.targetFormat || 'webp').toUpperCase() + (options.quality ? ' at quality ' + options.quality : '');
     if (toolId === 'image-resizer') return 'Resize supported images to ' + (options.width || 'auto') + ' × ' + (options.height || 'auto') + ' using ' + (options.fit || 'cover') + ' fit';
     if (toolId === 'image-compressor') return 'Compress supported images using the selected quality/format settings';
@@ -87,6 +80,7 @@
     entries = Array.isArray(entries) ? entries : []; options = options || {};
     var used = new Set(); var collisions = 0; var skipped = 0; var changes = 0; var warnings = [];
     if (options.renamePattern && /[\\/]/.test(options.renamePattern)) warnings.push('Rename patterns containing path separators may be rejected for safety.');
+    if (toolId === 'duplicate-finder') warnings.push('This scan is read-only. DevToolkit will report exact duplicates but will not delete files.');
     var rows = entries.map(function (entry, index) {
       var input = normalize(entry.path || entry.name || 'file'); var output = input; var rowSkipped = false;
       if (toolId === 'file-renamer') output = renameCandidate(input, index, options, entries.length);
