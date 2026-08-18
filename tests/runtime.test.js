@@ -22,12 +22,18 @@ test('app can be imported without starting its own listener', () => {
   assert.equal(typeof readiness, 'function');
 });
 
-test('readiness exposes writable runtime and job state', () => {
+test('readiness exposes writable runtime, jobs, and admission state', () => {
   const state = readiness();
   assert.equal(typeof state.ready, 'boolean');
   assert.equal(typeof state.checks.tempDirectoriesWritable, 'boolean');
+  assert.equal(typeof state.checks.processingCapacityAvailable, 'boolean');
   assert.equal(typeof state.jobs.active, 'number');
+  assert.equal(typeof state.jobs.phases.running, 'number');
   assert.equal(typeof state.memory.heapUsedMb, 'number');
+  assert.equal(typeof state.admission.accepting, 'boolean');
+  assert.equal(typeof state.admission.active.jobs, 'number');
+  assert.equal(typeof state.admission.queued.jobs, 'number');
+  assert.equal(typeof state.admission.limits.maxActiveUnits, 'number');
 });
 
 test('healthz and readyz return machine-readable JSON', async t => {
@@ -45,6 +51,7 @@ test('healthz and readyz return machine-readable JSON', async t => {
   assert.ok(ready.status === 200 || ready.status === 503);
   assert.equal(typeof payload.ready, 'boolean');
   assert.equal(typeof payload.jobs.active, 'number');
+  assert.equal(typeof payload.admission.accepting, 'boolean');
 });
 
 test('service worker does not cache legacy runner or server-rendered pages', async t => {
