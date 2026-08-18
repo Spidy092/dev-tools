@@ -5,6 +5,7 @@ const { ProcessingError, assertActive, createVerifiedReadStream } = require('./p
 
 const DEFAULT_MAX_ENTRIES = 10000;
 const DEFAULT_COMPRESSION_LEVEL = 6;
+const ZIP_SAFE_EPOCH = new Date('1980-01-01T00:00:00.000Z');
 
 function normalizeArchivePath(value) {
   const raw = String(value || '').replace(/\\/g, '/');
@@ -67,6 +68,8 @@ function lazySource(entry, options = {}) {
   async function* generate() {
     assertActive(options);
     let source;
+    let outputBytes = 0;
+
     if (entry.filePath) {
       source = createVerifiedReadStream(entry.filePath, {
         expectedSize: entry.size,
@@ -86,7 +89,11 @@ function lazySource(entry, options = {}) {
     }
 
     if (Buffer.isBuffer(source) || typeof source === 'string') {
-      yield source;
+      const chunk = Buffer.isBuffer(source) ? source : Buffer.from(source);
+      outputBytes += chunk.length;
+      yield chunk;
+      assertActive(options);
+      options.onEntryComplete?.({ entry, outputBytes });
       return;
     }
     if (!source || typeof source[Symbol.asyncIterator] !== 'function') {
@@ -94,8 +101,11 @@ function lazySource(entry, options = {}) {
     }
     for await (const chunk of source) {
       assertActive(options);
+      outputBytes += Buffer.byteLength(chunk);
       yield chunk;
     }
+    assertActive(options);
+    options.onEntryComplete?.({ entry, outputBytes });
   }
   return Readable.from(generate(), { objectMode: false });
 }
@@ -134,7 +144,7 @@ async function writeZip(destination, entries, options = {}) {
   try {
     for (const entry of validated) {
       assertActive(options);
-      archive.append(lazySource(entry, options), { name: entry.name, date: options.entryDate || new Date(0) });
+      archive.append(lazySource(entry, options), { name: entry.name, date: options.entryDate || ZIP_SAFE_EPOCH });
       options.onEntryQueued?.(entry);
     }
     await archive.finalize();
@@ -158,6 +168,7 @@ async function writeZip(destination, entries, options = {}) {
 
 module.exports = {
   DEFAULT_MAX_ENTRIES,
+  ZIP_SAFE_EPOCH,
   normalizeArchivePath,
   validateEntries,
   writeZip
