@@ -62,7 +62,12 @@ async function validateUploadedFiles(req, res, next) {
     return res.status(400).json({ error: 'One or more uploaded file paths are invalid.' });
   }
 
-  return admitUploadedRequest(req, res, next);
+  try {
+    return await admitUploadedRequest(req, res, next);
+  } catch (error) {
+    cleanupJob(req.jobId);
+    return next(error);
+  }
 }
 
 module.exports = { safeRelativePath, normalizePaths, validateUploadedFiles };
