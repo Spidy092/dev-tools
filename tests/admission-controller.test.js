@@ -185,3 +185,43 @@ test('shutdown rejects queued and future admissions while active leases can rele
   assert.equal(active.release(), true);
   assert.equal(gate.snapshot().active.jobs, 0);
 });
+
+test('queue-disabled mode still accepts immediately runnable work', async () => {
+  const gate = controller({ maxActiveJobs: 1, maxQueuedJobs: 0, maxQueuedBytes: 0 });
+  assert.equal(gate.snapshot().accepting, true);
+
+  const active = await gate.acquire('only', { units: 1, bytes: 1 });
+  assert.equal(gate.snapshot().accepting, false);
+  await assert.rejects(gate.acquire('cannot-wait', { units: 1, bytes: 1 }), error => error.code === 'ADMISSION_QUEUE_FULL');
+  active.release();
+  assert.equal(gate.snapshot().accepting, true);
+  gate.shutdown('test');
+});
+
+test('observer callback failures never corrupt scheduler accounting', async t => {
+  const gate = controller({ maxActiveJobs: 1 });
+  t.after(() => gate.shutdown('test'));
+
+  const active = await gate.acquire('active', {
+    units: 1,
+    bytes: 10,
+    onAdmitted: () => { throw new Error('metrics backend failed'); }
+  });
+  assert.equal(gate.snapshot().active.jobs, 1);
+  assert.equal(gate.snapshot().metrics.observerErrors, 1);
+
+  const waiting = gate.acquire('waiting', {
+    units: 1,
+    bytes: 20,
+    onQueued: () => { throw new Error('progress observer failed'); },
+    onPosition: () => { throw new Error('position observer failed'); }
+  });
+  await tick();
+  assert.equal(gate.snapshot().queued.jobs, 1);
+  assert.ok(gate.snapshot().metrics.observerErrors >= 2);
+
+  active.release();
+  const lease = await waiting;
+  assert.equal(gate.snapshot().active.jobs, 1);
+  lease.release();
+});
