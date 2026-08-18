@@ -32,9 +32,10 @@ function terminal(status) {
 }
 
 function createState(jobId, options = {}) {
+  const initialStatus = ACTIVE_PHASES.has(options.initialStatus) ? options.initialStatus : 'running';
   return {
     id: jobId,
-    status: options.placeholder ? 'waiting' : 'uploading',
+    status: options.placeholder ? 'waiting' : initialStatus,
     placeholder: Boolean(options.placeholder),
     requestKey: options.requestKey || '',
     events: [],
@@ -202,6 +203,11 @@ function sanitizeHeader(value, re) {
   return re.test(normalized) ? normalized : '';
 }
 
+function initialRequestStatus(req) {
+  const contentType = String(req.get('content-type') || '').toLowerCase();
+  return contentType.includes('multipart/form-data') ? 'uploading' : 'running';
+}
+
 function prepareJob(req, res, next) {
   const requestedJobId = String(req.get('X-Job-Id') || '').trim().toLowerCase();
   if (requestedJobId && !JOB_ID_RE.test(requestedJobId)) {
@@ -215,6 +221,7 @@ function prepareJob(req, res, next) {
 
   const jobId = requestedJobId || newJobId();
   const requestKey = sanitizeHeader(requestKeyHeader, REQUEST_KEY_RE);
+  const initialStatus = initialRequestStatus(req);
 
   const duplicateJob = jobs.get(jobId);
   if (duplicateJob && !duplicateJob.placeholder && !duplicateJob.ended) {
@@ -232,11 +239,11 @@ function prepareJob(req, res, next) {
 
   let state = duplicateJob;
   if (!state || state.ended) {
-    state = createState(jobId, { requestKey });
+    state = createState(jobId, { requestKey, initialStatus });
     jobs.set(jobId, state);
   } else {
     state.placeholder = false;
-    state.status = 'uploading';
+    state.status = initialStatus;
     state.requestKey = requestKey;
     state.admission = null;
     state.updatedAt = Date.now();
@@ -245,7 +252,7 @@ function prepareJob(req, res, next) {
   if (requestKey) activeRequestKeys.set(requestKey, jobId);
   req.jobId = jobId;
   res.setHeader('X-Job-Id', jobId);
-  emitEvent(jobId, { event: 'state', status: 'uploading' });
+  emitEvent(jobId, { event: 'state', status: initialStatus });
 
   state.timeout = setTimeout(() => {
     if (cancelJob(jobId, 'timeout')) {
