@@ -31,7 +31,7 @@ Per-tool presets can be saved locally, reapplied, exported, and imported as vers
 
 ### One consistent interface
 
-A file renamer, duplicate scanner, image converter, PDF processor, and code tool should not feel like unrelated products. DevToolkit keeps the same queue, review, preview, progress, and result concepts across the catalog.
+A file renamer, duplicate scanner, checksum verifier, image converter, PDF processor, and code tool should not feel like unrelated products. DevToolkit keeps the same queue, review, preview, progress, and result concepts across the catalog.
 
 ### Self-hostable
 
@@ -60,11 +60,14 @@ Expected public URL after Pages is enabled and this branch reaches `main`:
 | PDF Compressor | Compresses PDFs through guarded Ghostscript execution | Yes |
 | Smart File Renamer | Applies reusable rename and organization rules | Yes |
 | Duplicate File Finder | Finds exact duplicate files with size grouping + streaming SHA-256 verification | Yes |
+| Checksum & Manifest | Generates SHA-256 project manifests and verifies later snapshots for valid, changed, missing, and new files | Yes |
 | Code Minifier | Minifies HTML, CSS, and JavaScript | Yes |
 
 > PHP Protector performs **obfuscation, not cryptographic encryption**.
 
-## Duplicate detection design
+## File integrity tools
+
+### Duplicate File Finder
 
 Duplicate File Finder is intentionally read-only. It never removes files automatically.
 
@@ -74,7 +77,16 @@ Duplicate File Finder is intentionally read-only. It never removes files automat
 4. Files are reported as duplicates only when both size and SHA-256 match.
 5. Recoverable storage is calculated from extra copies while preserving one copy per group.
 
-Hashing streams files from disk rather than loading complete large files into Node memory.
+### Checksum & Manifest
+
+Checksum & Manifest creates a reusable SHA-256 snapshot of a project. Generate mode can download either DevToolkit `manifest.json` or standard `checksums.sha256` text. Verify mode compares a later project snapshot and reports:
+
+- valid files
+- changed files
+- missing files
+- new files
+
+Hashing streams files from disk rather than loading complete large files into Node memory. Verification is read-only. The current browser verification channel intentionally caps imported manifest JSON at about 120 KB to stay within the hardened 128 KB form-field limit; a dedicated large-manifest upload channel is a follow-up improvement.
 
 ## Product direction
 
@@ -84,7 +96,7 @@ DevToolkit is not trying to win by listing hundreds of tiny utilities. The produ
 - dry-run previews before mutating files
 - reusable/exportable presets
 - folder summaries and result analytics
-- high-value bulk tools such as duplicate detection, metadata removal, checksums, PDF merge/split, and project normalization
+- high-value bulk tools such as duplicate detection, checksums, metadata removal, PDF merge/split, and project normalization
 - eventually, multi-step workflow recipes such as `resize → convert → compress → ZIP`
 - browser-local processing for lightweight tools where practical, with clear privacy labels for every tool
 - CLI/API automation using the same processing concepts
