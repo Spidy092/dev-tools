@@ -7,17 +7,19 @@
 [![GitHub stars](https://img.shields.io/github/stars/Spidy092/dev-tools?style=social)](https://github.com/Spidy092/dev-tools/stargazers)
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-DevToolkit is a self-hostable developer utility suite designed around one consistent workflow:
+DevToolkit is a self-hostable developer utility suite built around one consistent workflow:
 
 **Select → Review → Configure → Process → Results**
 
-It works with one file, many files, or complete folders. The project intentionally stays on **Express + EJS + modular vanilla JavaScript** so contributors can understand and extend it without a heavy frontend framework.
+It supports single files, multiple files, and complete folders. The application uses **Express + EJS + modular vanilla JavaScript** to stay approachable for contributors.
 
-## Why DevToolkit?
+## Website
 
-Developers repeatedly need small utilities: resize images, compress PDFs, rename hundreds of files, minify a codebase, convert formats, or process a whole project directory. DevToolkit brings those tasks into one consistent interface with bulk/folder support instead of requiring a different website or CLI for every operation.
+The project landing site is designed for GitHub Pages and lives in [`docs/`](docs/).
 
-If DevToolkit saves you time, **please star the repository**. Stars help other developers discover the project and are one of the easiest ways to support an open-source project for free.
+After GitHub Pages is enabled with **GitHub Actions** as the source, the expected public URL is:
+
+`https://spidy092.github.io/dev-tools/`
 
 ## Current tools
 
@@ -31,24 +33,7 @@ If DevToolkit saves you time, **please star the repository**. Stars help other d
 | Smart File Renamer | Applies reusable rename and organization rules | Yes |
 | Code Minifier | Minifies HTML, CSS, and JavaScript | Yes |
 
-> PHP Protector performs **obfuscation, not cryptographic encryption**. Do not treat obfuscation as a security boundary.
-
-## Screens and workflow
-
-The UI supports:
-
-- files + folders in the same queue
-- drag and drop
-- search/filter within large batches
-- include/exclude patterns
-- review before processing
-- processing progress and cancellation
-- per-file results
-- retries for failed work
-- aggregate downloads
-- dark/light appearance
-- keyboard/command-palette navigation
-- dashboard search, categories, favorites, and recent tools
+> PHP Protector performs **obfuscation, not cryptographic encryption**.
 
 ## Quick start
 
@@ -63,7 +48,7 @@ The UI supports:
 
 ```bash
 git clone https://github.com/Spidy092/dev-tools.git
-cd dev-tools/php-protector
+cd dev-tools
 npm ci
 cp .env.example .env
 npm test
@@ -77,107 +62,95 @@ Open `http://localhost:3000`.
 ```text
 dev-tools/
 ├── .github/
-│   ├── ISSUE_TEMPLATE/       # Structured bug/feature/tool requests
-│   ├── workflows/            # GitHub Actions CI
-│   └── pull_request_template.md
-├── php-protector/            # Main application package (historical directory name)
-│   ├── core/                 # Processor implementations (Sharp, Ghostscript, obfuscation)
-│   ├── public/
-│   │   ├── css/              # Enterprise UI, queue, results, discovery styles
-│   │   └── js/               # Shared browser modules and tool runner
-│   ├── tests/                # Security, runtime, jobs, and HTTP integration tests
-│   ├── views/
-│   │   ├── partials/         # Reusable EJS app/tool workflow components
-│   │   └── *.ejs             # Tool-specific configuration views
-│   └── web/
-│       ├── routes/            # HTTP processing routes
-│       ├── app.js             # Express application/runtime lifecycle
-│       ├── multer-setup.js    # Upload limits/temp-file lifecycle
-│       ├── security.js        # Path validation and upload safety
-│       └── tool-registry.js   # Single source of truth for the tool catalog
+│   ├── ISSUE_TEMPLATE/
+│   ├── workflows/
+│   ├── CODEOWNERS
+│   └── dependabot.yml
+├── cli/                    # Command-line entrypoint
+├── core/                   # Processing engines
+├── docs/                   # GitHub Pages project website
+├── public/
+│   ├── css/                # Application styles
+│   └── js/                 # Shared browser modules
+├── tests/                  # Security/runtime/job/integration tests
+├── views/
+│   ├── partials/           # Shared EJS components
+│   └── *.ejs               # Tool views
+├── web/
+│   ├── routes/             # Processing endpoints
+│   ├── app.js              # Express app/runtime lifecycle
+│   ├── multer-setup.js     # Upload/temp lifecycle
+│   ├── security.js         # Path/input safety
+│   └── tool-registry.js    # Tool catalog source of truth
+├── package.json
+├── package-lock.json
+├── README.md
 ├── CONTRIBUTING.md
 ├── CODE_OF_CONDUCT.md
+├── SECURITY.md
 ├── DEPLOYMENT.md
 ├── ROADMAP.md
-├── SECURITY.md
+├── CHANGELOG.md
 └── LICENSE
 ```
 
-The directory `php-protector/` is the historical application root even though DevToolkit now contains multiple tools. A future cleanup may rename it, but avoiding a disruptive path migration keeps this release easier to review and deploy.
-
 ## Adding a new tool
 
-A typical new tool requires only four pieces:
+A normal tool contribution should:
 
-1. Add metadata/workflow configuration in `php-protector/web/tool-registry.js`.
-2. Add the processing route under `php-protector/web/routes/`.
-3. Add a small EJS view containing only that tool's unique options.
-4. Add integration/security tests under `php-protector/tests/`.
+1. Add metadata/workflow config to `web/tool-registry.js`.
+2. Add processing logic under `core/` when needed.
+3. Add an HTTP route under `web/routes/`.
+4. Add only tool-specific controls to its EJS view.
+5. Reuse the shared queue/progress/results workflow.
+6. Add integration/security tests under `tests/`.
 
-The shared queue, progress, results, navigation, search, favorites, and command palette should work from the central registry instead of being copied into each tool.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution workflow.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Architecture principles
 
-- Keep tools useful for **single + multiple + folder/bulk** workflows where sensible.
+- Support single + multi + folder workflows where sensible.
 - Prefer shared primitives over duplicated tool-specific UI.
-- Treat all uploaded files and paths as untrusted.
-- Keep processing limits explicit.
-- Preserve honest product language about server-side file processing.
-- Do not add React simply for UI polish; introduce major dependencies only when they solve a real product constraint.
-- Keep the project approachable for first-time open-source contributors.
+- Treat uploads and paths as untrusted.
+- Keep processor limits explicit.
+- Be accurate about server-side processing and privacy.
+- Keep the codebase easy for open-source contributors to understand.
 
 ## Privacy
 
-When using the web application, selected files are uploaded to the DevToolkit server temporarily for processing. They are **not processed purely in your browser**. Runtime upload/temp directories are cleaned automatically and ignored by Git.
+Files selected in the web app are uploaded temporarily to the running DevToolkit server for processing. They are **not processed purely in your browser**. Runtime upload/temp directories are cleaned automatically and ignored by Git.
 
 For sensitive workloads, self-host DevToolkit in an environment you control.
 
 ## Production deployment
 
-Do not expose the development server directly to the public internet. Production deployments should use HTTPS, reverse-proxy body limits, a non-root service account, CPU/memory constraints, restricted temporary storage, and `NODE_ENV=production`.
+Use HTTPS, reverse-proxy body limits, a non-root service account, CPU/memory constraints, restricted temporary storage, and `NODE_ENV=production`.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) and [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
-Contributions are welcome from beginners and experienced developers.
+Contributions are welcome. Good ways to help include bug fixes, tests, documentation, accessibility improvements, performance work, and useful new developer tools.
 
-Good ways to help:
-
-- report a reproducible bug
-- improve accessibility or UX
-- improve docs/tests
-- propose a developer utility
-- improve an existing bulk workflow
-- review open issues/PRs
-- share the project with developers who may find it useful
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Roadmap
 
-The long-term goal is to make DevToolkit a trusted open-source toolbox that can grow from a small catalog into dozens of high-quality developer utilities without becoming messy.
+The long-term goal is to make DevToolkit a trusted open-source toolbox that can grow into dozens of useful developer utilities without becoming messy.
 
 See [ROADMAP.md](ROADMAP.md).
 
-## Security
-
-Please **do not publish exploitable security details in a public issue**. Follow the private reporting guidance in [SECURITY.md](SECURITY.md).
-
 ## License
 
-DevToolkit is licensed under the [MIT License](LICENSE). You may use, modify, distribute, and build on the project, including commercially, subject to the license terms.
+DevToolkit is licensed under the [MIT License](LICENSE).
 
 ## Support the project for free
 
-If you want DevToolkit to grow:
+If DevToolkit saves you time:
 
 1. ⭐ Star the repository.
-2. Share it with other developers.
-3. Open useful bug reports and feature/tool ideas.
+2. Share it with developers who may find it useful.
+3. Open high-quality bug reports and tool ideas.
 4. Contribute fixes, tests, docs, or new tools.
-5. Mention DevToolkit when it solves a real problem for you.
 
-Every useful contribution and genuine star improves the project's discoverability.
+Genuine users and contributors are the best way to grow the project.
