@@ -9,7 +9,7 @@ Every file processor should follow these rules:
 1. **Regular files only** — reject final-path symbolic links and non-regular files for core file reads.
 2. **Never trust declared metadata alone** — compare an expected upload size with the opened file's actual size when an expected size is available.
 3. **Detect files changing during processing** — verify size/inode/timestamps after reads and fail instead of returning a result from an unstable input.
-4. **Bound every resource** — cap file count, aggregate declared bytes, per-file buffered bytes, I/O chunk size, and concurrency.
+4. **Bound every resource** — cap file count, aggregate declared bytes, per-file buffered bytes, I/O chunk size, concurrency, and simultaneous admitted work.
 5. **Stream by default** — hashing, passthrough copies, archive sources, and fingerprints use bounded reads. A processor may materialize a full file only through a bounded API such as `readFileBuffer()` with an explicit maximum.
 6. **Cancellation is cooperative and frequent** — check cancellation/abort before opening a file and between I/O chunks. Child processes must also terminate when their job aborts.
 7. **Deterministic outputs** — concurrency may change completion order, but reports/manifests/archive metadata must be deterministic where the format allows it.
@@ -18,6 +18,7 @@ Every file processor should follow these rules:
 10. **Core safety must not depend on Express** — the same protections must apply when a core module is called from the CLI, tests, or future worker processes.
 11. **Archive extraction must be portable by default** — reject traversal, absolute paths, Windows reserved names, case-fold collisions, control characters, unsafe punctuation, and overlong path segments.
 12. **Untouched files should remain untouched** — if a tool does not need to transform a file, stream verified original bytes instead of decoding/re-encoding them.
+13. **Heavy work requires admission** — web processors must not begin CPU/I/O-heavy work until the global scheduler grants a lease.
 
 ## `processingEngine.js`
 
@@ -67,6 +68,69 @@ Core resource budgets are an inner defense used by web routes, the CLI, and futu
 Environment overrides are bounded by hard ceilings so a configuration typo cannot silently remove all resource protection.
 
 HTTP upload limits remain an outer defense. Core limits are deliberately independent so CLI/future worker callers retain protection.
+
+## `admissionController.js`
+
+The global scheduler protects one Node instance from aggregate overload across simultaneous requests.
+
+A processing request receives a weighted cost based on processor type, declared bytes, and file count. The web lifecycle is:
+
+```text
+uploading
+   ↓
+validated upload
+   ↓
+weighted admission
+   ├── run now
+   ├── queue
+   └── reject / timeout
+   ↓
+running
+   ↓
+response finish / abort
+   ↓
+lease released
+```
+
+Default web policy:
+
+- maximum active jobs: 4
+- maximum active processing units: 8
+- maximum active declared bytes: 1 GiB
+- maximum queued jobs: 16
+- maximum queued declared bytes: 2 GiB
+- maximum queue wait: 120 seconds
+- maximum bypasses before starvation protection: 3
+
+Base processor units:
+
+- passthrough/rename stream: 1
+- checksum: 1
+- duplicate scan: 2
+- text normalization: 2
+- PHP processing: 2
+- code minification: 3
+- image processing: 4
+- PDF/Ghostscript: 4
+
+Very large batches and projects with thousands of files receive additional units. The cost is capped to the configured instance unit capacity so custom smaller deployments remain usable.
+
+Admission guarantees:
+
+- active job, unit, and byte ceilings are independent
+- queued job and byte ceilings are independent
+- queue-full work receives `503` and `Retry-After`
+- queue timeout fails explicitly rather than waiting forever
+- user/client cancellation removes queued work immediately
+- a processing lease is retained until the HTTP response actually finishes or closes
+- limited bypassing lets small work use spare capacity while preventing starvation of a larger queued job
+- queue positions are refreshed when earlier jobs leave
+- progress/metrics observer failures cannot corrupt scheduler accounting
+- shutdown permanently closes admission before active jobs are drained/cancelled
+- `/readyz` exposes scheduler pressure and becomes unavailable when the instance cannot accept more processing work
+- known processing POSTs are rejected before upload when the queue is already at its hard ceiling
+
+The in-process scheduler is intentionally a **single-instance** boundary. Horizontal scaling requires shared admission/job state or an external queue; do not assume independent Node processes coordinate these limits.
 
 ## `textCodec.js`
 
@@ -130,12 +194,11 @@ PHP CLI output must live outside the input tree. CLI ZIP creation uses the same 
 The main Phase 2 items still outstanding are:
 
 - streaming text normalization for files larger than the bounded in-memory text budget
-- global admission/backpressure limits across simultaneous jobs, not only within one job
 - worker-process/container isolation for CPU-heavy Sharp/minifier/Ghostscript workloads before high-volume public hosting
 - structured resource metrics (bytes read/written, processor time, queue time, cancellations, memory pressure)
 - filesystem fault-injection tests (permission errors, disk-full/write failure, truncated uploads)
 - property/fuzz tests for paths, manifests, encodings, rename rules, archive names, and malformed media
 - safer atomic filesystem output primitives for CLI folder writes
-- shared job state before horizontal scaling
+- shared job/admission state or an external queue before horizontal scaling
 
 Do not weaken these invariants to make a new tool easier to implement. New tools should fit the engine, not bypass it.
