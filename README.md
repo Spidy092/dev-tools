@@ -1,23 +1,47 @@
 # DevToolkit
 
-> Open-source bulk developer utilities for files, images, PDFs, source code, and everyday developer workflows.
+> Open-source, self-hostable **bulk developer operations** for files, folders, images, PDFs, and code.
 
 [![CI](https://github.com/Spidy092/dev-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/Spidy092/dev-tools/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/Spidy092/dev-tools?style=social)](https://github.com/Spidy092/dev-tools/stargazers)
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-DevToolkit is a self-hostable developer utility suite built around one consistent workflow:
+DevToolkit is built for the point where tiny online utilities become annoying: **real folders, repeated work, large batches, and project-wide operations**.
+
+Instead of learning a different interface for every utility, DevToolkit uses one workflow:
 
 **Select → Review → Configure → Process → Results**
 
 It supports single files, multiple files, and complete folders. The application uses **Express + EJS + modular vanilla JavaScript** to stay approachable for contributors.
 
+## Why use DevToolkit?
+
+### Bulk and folder workflows
+
+Many developer utilities are excellent for one text box or one file. DevToolkit is designed to make the same operation practical across dozens, hundreds, or thousands of files where the processor supports it.
+
+### Review before processing
+
+Users can inspect the queue, search it, include/exclude files, and configure an operation before processing begins. The roadmap expands this into universal dry-run previews for mutating tools.
+
+### One consistent interface
+
+A file renamer, image converter, PDF processor, and code tool should not feel like four unrelated products. DevToolkit keeps the same workflow and result model across the catalog.
+
+### Self-hostable
+
+For sensitive project files, run DevToolkit on infrastructure you control rather than depending on unrelated third-party upload sites.
+
+### Open source
+
+DevToolkit is MIT licensed. The code, roadmap, tests, security guidance, and contribution process are public.
+
 ## Website
 
-The project landing site is designed for GitHub Pages and lives in [`docs/`](docs/).
+The project landing site lives in [`docs/`](docs/) and is designed for GitHub Pages.
 
-After GitHub Pages is enabled with **GitHub Actions** as the source, the expected public URL is:
+Expected public URL after Pages is enabled and this branch reaches `main`:
 
 `https://spidy092.github.io/dev-tools/`
 
@@ -34,6 +58,21 @@ After GitHub Pages is enabled with **GitHub Actions** as the source, the expecte
 | Code Minifier | Minifies HTML, CSS, and JavaScript | Yes |
 
 > PHP Protector performs **obfuscation, not cryptographic encryption**.
+
+## Product direction
+
+DevToolkit is not trying to win by listing hundreds of tiny utilities. The product direction is:
+
+- excellent large-folder review and filtering
+- dry-run previews before mutating files
+- reusable/exportable presets
+- folder summaries and result analytics
+- high-value bulk tools such as duplicate detection, metadata removal, checksums, PDF merge/split, and project normalization
+- eventually, multi-step workflow recipes such as `resize → convert → compress → ZIP`
+- browser-local processing for lightweight tools where practical, with clear privacy labels for every tool
+- CLI/API automation using the same processing concepts
+
+See [ROADMAP.md](ROADMAP.md) for the prioritized plan.
 
 ## Quick start
 
@@ -107,20 +146,13 @@ A normal tool contribution should:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Architecture principles
-
-- Support single + multi + folder workflows where sensible.
-- Prefer shared primitives over duplicated tool-specific UI.
-- Treat uploads and paths as untrusted.
-- Keep processor limits explicit.
-- Be accurate about server-side processing and privacy.
-- Keep the codebase easy for open-source contributors to understand.
-
 ## Privacy
 
 Files selected in the web app are uploaded temporarily to the running DevToolkit server for processing. They are **not processed purely in your browser**. Runtime upload/temp directories are cleaned automatically and ignored by Git.
 
 For sensitive workloads, self-host DevToolkit in an environment you control.
+
+We plan to distinguish every tool clearly as **browser-local** or **server-processed** as the catalog grows.
 
 ## Production deployment
 
@@ -134,12 +166,6 @@ Contributions are welcome. Good ways to help include bug fixes, tests, documenta
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-## Roadmap
-
-The long-term goal is to make DevToolkit a trusted open-source toolbox that can grow into dozens of useful developer utilities without becoming messy.
-
-See [ROADMAP.md](ROADMAP.md).
-
 ## License
 
 DevToolkit is licensed under the [MIT License](LICENSE).
@@ -149,7 +175,7 @@ DevToolkit is licensed under the [MIT License](LICENSE).
 If DevToolkit saves you time:
 
 1. ⭐ Star the repository.
-2. Share it with developers who may find it useful.
+2. Share a real workflow it helped you solve.
 3. Open high-quality bug reports and tool ideas.
 4. Contribute fixes, tests, docs, or new tools.
 
