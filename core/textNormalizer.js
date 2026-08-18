@@ -1,8 +1,10 @@
 const { TextDecoder } = require('node:util');
+const { readFileBuffer } = require('./processingEngine');
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
 const UTF16LE_BOM = Buffer.from([0xff, 0xfe]);
 const UTF16BE_BOM = Buffer.from([0xfe, 0xff]);
+const DEFAULT_MAX_TEXT_BYTES = 32 * 1024 * 1024;
 
 function startsWith(buffer, prefix) {
   return buffer.length >= prefix.length && buffer.subarray(0, prefix.length).equals(prefix);
@@ -30,16 +32,25 @@ function detectAndDecode(buffer) {
   if (!Buffer.isBuffer(buffer)) buffer = Buffer.from(buffer || []);
 
   if (startsWith(buffer, UTF8_BOM)) {
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(3));
-    return { text, encoding: 'utf8-bom', supported: controlCharacterRatio(text) <= 0.02 };
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(3));
+      return { text, encoding: 'utf8-bom', supported: controlCharacterRatio(text) <= 0.02 };
+    } catch (_) {
+      return { text: null, encoding: 'unknown', supported: false };
+    }
   }
   if (startsWith(buffer, UTF16LE_BOM)) {
+    if ((buffer.length - 2) % 2 !== 0) return { text: null, encoding: 'unknown', supported: false };
     const text = buffer.subarray(2).toString('utf16le');
     return { text, encoding: 'utf16le-bom', supported: controlCharacterRatio(text) <= 0.02 };
   }
   if (startsWith(buffer, UTF16BE_BOM)) {
-    const text = decodeUtf16Be(buffer.subarray(2));
-    return { text, encoding: 'utf16be-bom', supported: controlCharacterRatio(text) <= 0.02 };
+    try {
+      const text = decodeUtf16Be(buffer.subarray(2));
+      return { text, encoding: 'utf16be-bom', supported: controlCharacterRatio(text) <= 0.02 };
+    } catch (_) {
+      return { text: null, encoding: 'unknown', supported: false };
+    }
   }
 
   if (buffer.includes(0)) return { text: null, encoding: 'binary', supported: false };
@@ -124,9 +135,28 @@ function normalizeBuffer(buffer, options = {}) {
   };
 }
 
+async function normalizeFile(filePath, options = {}) {
+  const configuredLimit = Number(options.maxBytes);
+  const maxBytes = Number.isSafeInteger(configuredLimit) && configuredLimit >= 0 ? configuredLimit : DEFAULT_MAX_TEXT_BYTES;
+  const read = await readFileBuffer(filePath, {
+    expectedSize: options.expectedSize,
+    maxBytes,
+    chunkBytes: options.chunkBytes,
+    signal: options.signal,
+    checkCancelled: options.checkCancelled,
+    onBytes: options.onBytes
+  });
+  return {
+    ...normalizeBuffer(read.buffer, options),
+    inputBytes: read.bytes
+  };
+}
+
 module.exports = {
+  DEFAULT_MAX_TEXT_BYTES,
   detectAndDecode,
   detectLineEndings,
   normalizeLineEndings,
-  normalizeBuffer
+  normalizeBuffer,
+  normalizeFile
 };
