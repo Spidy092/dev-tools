@@ -13,6 +13,18 @@ class PhpSourceError extends Error {
   }
 }
 
+function assertSeparateTrees(inputDir, outputDir) {
+  const input = path.resolve(inputDir);
+  const output = path.resolve(outputDir);
+  const relative = path.relative(input, output);
+  if (!relative || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) {
+    const error = new Error('Output directory must be outside the input project tree.');
+    error.code = 'OUTPUT_INSIDE_INPUT';
+    throw error;
+  }
+  return { input, output };
+}
+
 /**
  * Takes a validated PHP source string and returns an obfuscated PHP string.
  */
@@ -65,17 +77,37 @@ async function obfuscateFile(filePath, options = {}) {
 }
 
 /**
- * Legacy CLI-compatible folder processor. PHP files use the same bounded,
- * strict UTF-8 core API as the web route. Non-PHP files use copyFile so they
- * are never materialized into JavaScript memory.
+ * CLI-compatible folder processor. PHP files use the same bounded, strict
+ * UTF-8 core API as the web route. The output tree must live outside the input
+ * tree, and symbolic-link roots are rejected by walkDir().
  */
 async function processFolder(inputDir, outputDir, onFile, options = {}) {
-  await fsp.mkdir(outputDir, { recursive: true });
-  const files = await walkDir(inputDir);
+  const roots = assertSeparateTrees(inputDir, outputDir);
+  const files = await walkDir(roots.input, roots.input, {
+    maxFiles: RESOURCE_POLICY.maxFiles,
+    maxDirectories: RESOURCE_POLICY.maxFiles,
+    maxDepth: 128
+  });
+
+  let existingOutput;
+  try { existingOutput = await fsp.lstat(roots.output); } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (existingOutput?.isSymbolicLink()) {
+    const error = new Error('Output directory cannot be a symbolic link.');
+    error.code = 'OUTPUT_SYMLINK';
+    throw error;
+  }
+  if (existingOutput && !existingOutput.isDirectory()) {
+    const error = new Error('Output path exists and is not a directory.');
+    error.code = 'INVALID_OUTPUT_DIRECTORY';
+    throw error;
+  }
+  await fsp.mkdir(roots.output, { recursive: true });
 
   for (const { fullPath, relativePath } of files) {
     options.checkCancelled?.();
-    const outPath = path.join(outputDir, relativePath);
+    const outPath = path.join(roots.output, relativePath);
     await fsp.mkdir(path.dirname(outPath), { recursive: true });
     const stat = await fsp.stat(fullPath);
     if (!stat.isFile()) continue;
@@ -98,6 +130,7 @@ async function processFolder(inputDir, outputDir, onFile, options = {}) {
 
 module.exports = {
   PhpSourceError,
+  assertSeparateTrees,
   decodePhpSource,
   obfuscateCode,
   obfuscateBuffer,
