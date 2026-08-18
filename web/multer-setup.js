@@ -56,7 +56,7 @@ function enforceTotalSize(req, res, next) {
 }
 
 function cleanupJob(jobId) {
-  if (!/^[a-f0-9]{16}$/.test(String(jobId || ''))) return;
+  if (!/^(?:[a-f0-9]{16}|[a-f0-9]{32})$/.test(String(jobId || ''))) return;
   const jobDir = path.join(uploadsDir, jobId);
   if (fs.existsSync(jobDir)) fs.rmSync(jobDir, { recursive: true, force: true });
 }
