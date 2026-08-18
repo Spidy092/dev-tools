@@ -21,11 +21,8 @@ function controlCharacterRatio(text) {
   return controls / text.length;
 }
 
-function decodeUtf16Be(buffer) {
-  const body = Buffer.from(buffer);
-  if (body.length % 2 !== 0) throw new Error('Invalid UTF-16BE byte length');
-  body.swap16();
-  return body.toString('utf16le');
+function decodeText(buffer, encoding) {
+  return new TextDecoder(encoding, { fatal: true }).decode(buffer);
 }
 
 function detectAndDecode(buffer) {
@@ -33,7 +30,7 @@ function detectAndDecode(buffer) {
 
   if (startsWith(buffer, UTF8_BOM)) {
     try {
-      const text = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(3));
+      const text = decodeText(buffer.subarray(3), 'utf-8');
       return { text, encoding: 'utf8-bom', supported: controlCharacterRatio(text) <= 0.02 };
     } catch (_) {
       return { text: null, encoding: 'unknown', supported: false };
@@ -41,12 +38,17 @@ function detectAndDecode(buffer) {
   }
   if (startsWith(buffer, UTF16LE_BOM)) {
     if ((buffer.length - 2) % 2 !== 0) return { text: null, encoding: 'unknown', supported: false };
-    const text = buffer.subarray(2).toString('utf16le');
-    return { text, encoding: 'utf16le-bom', supported: controlCharacterRatio(text) <= 0.02 };
+    try {
+      const text = decodeText(buffer.subarray(2), 'utf-16le');
+      return { text, encoding: 'utf16le-bom', supported: controlCharacterRatio(text) <= 0.02 };
+    } catch (_) {
+      return { text: null, encoding: 'unknown', supported: false };
+    }
   }
   if (startsWith(buffer, UTF16BE_BOM)) {
+    if ((buffer.length - 2) % 2 !== 0) return { text: null, encoding: 'unknown', supported: false };
     try {
-      const text = decodeUtf16Be(buffer.subarray(2));
+      const text = decodeText(buffer.subarray(2), 'utf-16be');
       return { text, encoding: 'utf16be-bom', supported: controlCharacterRatio(text) <= 0.02 };
     } catch (_) {
       return { text: null, encoding: 'unknown', supported: false };
@@ -55,7 +57,7 @@ function detectAndDecode(buffer) {
 
   if (buffer.includes(0)) return { text: null, encoding: 'binary', supported: false };
   try {
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+    const text = decodeText(buffer, 'utf-8');
     if (controlCharacterRatio(text) > 0.02) return { text: null, encoding: 'binary', supported: false };
     return { text, encoding: 'utf8', supported: true };
   } catch (_) {
