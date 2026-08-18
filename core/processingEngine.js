@@ -170,6 +170,31 @@ async function hashFile(filePath, options = {}) {
   }
 }
 
+async function readFileBuffer(filePath, options = {}) {
+  if (!Number.isSafeInteger(options.maxBytes) || options.maxBytes < 0) {
+    throw new ProcessingError('BUFFER_LIMIT_REQUIRED', 'Buffered reads require an explicit maximum byte limit.');
+  }
+  const chunkBytes = normalizeChunkBytes(options.chunkBytes);
+  const { handle, stat } = await openRegularFile(filePath, options);
+  const output = Buffer.allocUnsafe(stat.size);
+  let position = 0;
+
+  try {
+    while (position < stat.size) {
+      assertActive(options);
+      const length = Math.min(chunkBytes, stat.size - position);
+      const { bytesRead } = await handle.read(output, position, length, position);
+      if (bytesRead <= 0) throw new ProcessingError('UNEXPECTED_EOF', 'File ended before the expected size was read.');
+      position += bytesRead;
+      options.onBytes?.({ bytesRead, position, total: stat.size });
+    }
+    await verifyUnchanged(handle, stat, position, options);
+    return { buffer: output, bytes: position, stat };
+  } finally {
+    await handle.close().catch(() => {});
+  }
+}
+
 async function fingerprintFile(filePath, options = {}) {
   const sampleBytes = clampInteger(options.sampleBytes, DEFAULT_SAMPLE_BYTES, 4096, 1024 * 1024);
   const { handle, stat } = await openRegularFile(filePath, options);
@@ -255,6 +280,7 @@ module.exports = {
   validateFileItems,
   statRegularFile,
   hashFile,
+  readFileBuffer,
   fingerprintFile,
   mapLimit
 };
