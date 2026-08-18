@@ -65,8 +65,20 @@ class AdmissionController {
     this.activeUnits = 0;
     this.sequence = 0;
     this.draining = false;
+    this.drainScheduled = false;
     this.closed = false;
     this.closeReason = '';
+    this.observerErrors = 0;
+  }
+
+  notify(callback, payload) {
+    if (!callback) return;
+    try {
+      callback(payload);
+    } catch (_) {
+      // Scheduler state must never depend on progress/metrics observers.
+      this.observerErrors += 1;
+    }
   }
 
   canRun(entry) {
@@ -147,7 +159,7 @@ class AdmissionController {
 
       this.queue.push(entry);
       this.queuedBytes += entry.bytes;
-      entry.onQueued?.({
+      this.notify(entry.onQueued, {
         position: this.queue.length,
         queuedJobs: this.queue.length,
         queuedBytes: this.queuedBytes,
@@ -166,13 +178,14 @@ class AdmissionController {
   }
 
   notifyQueuePositions() {
+    const now = Date.now();
     for (let i = 0; i < this.queue.length; i++) {
       const entry = this.queue[i];
-      entry.onPosition?.({
+      this.notify(entry.onPosition, {
         position: i + 1,
         queuedJobs: this.queue.length,
         queuedBytes: this.queuedBytes,
-        waitedMs: Math.max(0, Date.now() - entry.queuedAt)
+        waitedMs: Math.max(0, now - entry.queuedAt)
       });
     }
   }
@@ -192,7 +205,7 @@ class AdmissionController {
     this.active.set(entry.jobId, entry);
     this.activeUnits += entry.units;
     this.activeBytes += entry.bytes;
-    request.onAdmitted?.({
+    this.notify(request.onAdmitted, {
       activeJobs: this.active.size,
       activeUnits: this.activeUnits,
       activeBytes: this.activeBytes,
@@ -265,8 +278,12 @@ class AdmissionController {
   }
 
   scheduleDrain() {
-    if (this.draining || this.closed) return;
-    queueMicrotask(() => this.drain());
+    if (this.draining || this.closed || this.drainScheduled) return;
+    this.drainScheduled = true;
+    queueMicrotask(() => {
+      this.drainScheduled = false;
+      this.drain();
+    });
   }
 
   cancelQueued(jobId, reason = 'cancelled') {
@@ -303,8 +320,17 @@ class AdmissionController {
     const queuedKinds = {};
     for (const entry of this.active.values()) activeKinds[entry.kind] = (activeKinds[entry.kind] || 0) + 1;
     for (const entry of this.queue) queuedKinds[entry.kind] = (queuedKinds[entry.kind] || 0) + 1;
+
+    const immediateCapacity = !this.closed && this.queue.length === 0 &&
+      this.active.size < this.limits.maxActiveJobs &&
+      this.activeUnits < this.limits.maxActiveUnits &&
+      this.activeBytes < this.limits.maxActiveBytes;
+    const queueCapacity = !this.closed && this.limits.maxQueuedJobs > 0 &&
+      this.queue.length < this.limits.maxQueuedJobs &&
+      this.queuedBytes <= this.limits.maxQueuedBytes;
+
     return {
-      accepting: !this.closed && this.queue.length < this.limits.maxQueuedJobs && this.queuedBytes < this.limits.maxQueuedBytes,
+      accepting: immediateCapacity || queueCapacity,
       closed: this.closed,
       closeReason: this.closed ? this.closeReason : null,
       active: {
@@ -319,7 +345,10 @@ class AdmissionController {
         oldestWaitMs: oldest,
         kinds: queuedKinds
       },
-      limits: { ...this.limits }
+      limits: { ...this.limits },
+      metrics: {
+        observerErrors: this.observerErrors
+      }
     };
   }
 }
