@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'Code Minifier' }) %>
+</head>
+<body>
+  <div class="container" id="main-container">
+    <%- include('partials/header', { pill: 'PERFORMANCE ENGINE', h1Left: 'Code', h1Right: 'Minifier', subtitle: 'Compress HTML, CSS, and JavaScript recursively.' }) %>
+
+    <div id="options-panel">
+      <div class="stats" style="grid-template-columns:1fr;margin-bottom:20px">
+        <div class="stat-card" style="text-align:left">
+          <label style="font-weight:600;margin-bottom:15px;display:block">Select Targets</label>
+          <div class="feature-grid">
+            <label class="feature-opt"><input type="checkbox" id="minifyHtml" checked><span>Minify HTML</span></label>
+            <label class="feature-opt"><input type="checkbox" id="minifyCss" checked><span>Minify CSS</span></label>
+            <label class="feature-opt"><input type="checkbox" id="minifyJs" checked><span>Minify JavaScript</span></label>
+          </div>
+          <p style="font-size:11px;margin-top:10px;color:var(--text-muted)">Non-selected file types are preserved in the output.</p>
+        </div>
+      </div>
+      <div class="stat-card" style="margin-bottom:24px;text-align:left">
+        <label style="font-weight:600;margin-bottom:15px;display:block">JavaScript Advanced Settings</label>
+        <div class="feature-grid">
+          <label class="feature-opt"><input type="checkbox" id="mangleVariables" checked><span>Mangle Variable Names</span></label>
+          <label class="feature-opt"><input type="checkbox" id="preserveComments"><span>Preserve Comments</span></label>
+          <label class="feature-opt"><input type="checkbox" id="renamePatternToggle"><span>Rename Output</span><input type="text" id="renamePattern" placeholder="{name}.min" style="width:150px;margin-left:auto" disabled></label>
+        </div>
+      </div>
+    </div>
+
+    <%- include('partials/tool-workflow', { tool: tool }) %>
+  </div>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

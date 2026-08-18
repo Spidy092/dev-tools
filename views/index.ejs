@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'DevToolkit — Developer Utilities' }) %>
+</head>
+<body>
+  <div class="dashboard-container">
+    <%- include('partials/header', { pill: 'DEVTOOLKIT', h1Left: 'Build faster with', h1Right: 'focused tools', subtitle: 'Process one file, many files, or entire folders with a consistent workflow built for developers.' }) %>
+
+    <div class="enterprise-note">
+      <strong>Privacy:</strong> web tools upload files to this server temporarily for processing. Uploaded job files are automatically cleaned up after processing. Browser-only tools will be labeled separately when added.
+    </div>
+
+    <% var categories = Array.from(new Set(tools.map(function(item) { return item.category; }))).sort(); %>
+    <section class="catalog" aria-labelledby="catalog-heading">
+      <div class="catalog-heading-row">
+        <div>
+          <p class="catalog-eyebrow">Tool catalog</p>
+          <h2 id="catalog-heading">Find the right utility quickly</h2>
+          <p id="catalog-count" class="catalog-count"><%= tools.length %> tools available</p>
+        </div>
+        <label class="catalog-search-wrap" for="catalog-search">
+          <span aria-hidden="true">⌕</span>
+          <input id="catalog-search" type="search" placeholder="Search tools, formats, or tasks…" autocomplete="off">
+          <kbd>/</kbd>
+        </label>
+      </div>
+
+      <div class="catalog-filters" role="group" aria-label="Filter tools">
+        <button class="catalog-filter active" type="button" data-filter="all" aria-pressed="true">All</button>
+        <button class="catalog-filter" type="button" data-filter="favorites" aria-pressed="false">★ Favorites <span id="favorites-count">0</span></button>
+        <button class="catalog-filter" type="button" data-filter="recent" aria-pressed="false">Recent</button>
+        <% categories.forEach(function(category) { %>
+          <button class="catalog-filter" type="button" data-filter="category:<%= category.toLowerCase() %>" aria-pressed="false"><%= category %></button>
+        <% }) %>
+      </div>
+
+      <div class="dashboard catalog-grid" id="tool-catalog" aria-label="Developer tools">
+        <% tools.forEach(function(tool) { %>
+          <article class="tool-card catalog-tool-card"
+                   data-tool-id="<%= tool.id %>"
+                   data-category="<%= tool.category.toLowerCase() %>"
+                   data-search="<%= [tool.name, tool.category, tool.description].concat(tool.keywords || []).join(' ').toLowerCase() %>">
+            <button class="tool-favorite-btn" type="button" data-favorite-tool="<%= tool.id %>" aria-label="Add <%= tool.name %> to favorites" aria-pressed="false" title="Favorite tool">☆</button>
+            <a href="<%= tool.route %>" class="tool-card-link" data-tool-link data-tool-id="<%= tool.id %>">
+              <span class="tag"><%= tool.category %></span>
+              <div class="icon" aria-hidden="true"><%= tool.icon %></div>
+              <h3><%= tool.name %></h3>
+              <p><%= tool.description %></p>
+              <span class="tool-open-label">Open tool <span aria-hidden="true">→</span></span>
+            </a>
+          </article>
+        <% }) %>
+      </div>
+
+      <div id="catalog-empty" class="catalog-empty hidden">
+        <strong>No matching tools</strong>
+        <span>Try another search or category.</span>
+      </div>
+    </section>
+  </div>
+  <div class="toast-container" id="toast-container"></div>
+  <script src="/js/toast.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/shortcuts.js"></script>
+  <script src="/js/cmd-palette.js"></script>
+  <script src="/js/settings.js"></script>
+  <script src="/js/tour.js"></script>
+  <script src="/js/tool-discovery.js"></script>
+</body>
+</html>

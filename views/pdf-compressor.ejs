@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'PDF Compressor' }) %>
+</head>
+<body>
+  <div class="container" id="main-container">
+    <%- include('partials/header', { pill: 'GHOSTSCRIPT ENGINE', h1Left: 'PDF', h1Right: 'Compressor', subtitle: 'Reduce PDF size with controlled Ghostscript quality presets.' }) %>
+
+    <div id="options-panel" class="stats" style="grid-template-columns:1fr;margin-bottom:24px">
+      <div class="stat-card">
+        <div class="form-group"><label>Compression Level</label>
+          <select id="pdfLevel">
+            <option value="/screen" selected>Minimum Size (72 dpi, screen)</option>
+            <option value="/ebook">Medium Quality (150 dpi, ebook)</option>
+            <option value="/printer">Print Quality (300 dpi, print)</option>
+            <option value="/prepress">Max Quality (300 dpi, high fidelity)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <%- include('partials/tool-workflow', { tool: tool }) %>
+  </div>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

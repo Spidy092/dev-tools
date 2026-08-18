@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'Smart File Renamer' }) %>
+</head>
+<body>
+  <div class="container" id="main-container">
+    <%- include('partials/header', { pill: 'UTILITY ENGINE', h1Left: 'Smart', h1Right: 'File Renamer', subtitle: 'Clean, standardize, and rename any file type recursively.' }) %>
+
+    <div id="options-panel">
+      <div class="stats" style="grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        <div class="stat-card">
+          <div class="form-group"><label>Casing & Separator rules</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <select id="casing">
+                <option value="lowercase">lowercase</option>
+                <option value="uppercase">UPPERCASE</option>
+                <option value="keep">Keep Original</option>
+              </select>
+              <select id="separator">
+                <option value="hyphen">Use Hyphens (-)</option>
+                <option value="underscore">Use Underscores (_)</option>
+                <option value="none">Remove all spaces</option>
+                <option value="keep">Keep spaces/dots</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="form-group"><label>Rename Pattern (optional)</label>
+            <input type="text" id="renamePattern" placeholder="e.g. {name}_cleaned_{index}">
+            <p style="font-size:11px;margin-top:5px;color:var(--text-muted)">Use {name} for original name and {index} for numbers.</p>
+          </div>
+        </div>
+      </div>
+      <div class="stat-card" style="margin-bottom:24px;text-align:left">
+        <label style="font-weight:600;margin-bottom:15px;display:block">Advanced Settings</label>
+        <div class="feature-grid">
+          <label class="feature-opt"><input type="checkbox" id="strictClean" checked><span>Strict Clean (Remove special chars)</span></label>
+          <label class="feature-opt"><input type="checkbox" id="collapseHyphens" checked><span>Collapse repeated separators</span></label>
+          <label class="feature-opt"><input type="checkbox" id="organizeByExtension"><span>Organize by extension</span></label>
+        </div>
+      </div>
+    </div>
+
+    <%- include('partials/tool-workflow', { tool: tool }) %>
+  </div>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

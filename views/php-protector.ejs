@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'PHP Protector' }) %>
+</head>
+<body>
+  <div class="container" id="main-container">
+    <%- include('partials/header', { pill: 'SECURE ENGINE', h1Left: 'PHP', h1Right: 'Protector', subtitle: 'Obfuscate PHP code while maintaining directory structure.' }) %>
+
+    <div class="enterprise-note"><strong>Security note:</strong> PHP Protector performs code obfuscation. It does not encrypt source code or provide cryptographic protection.</div>
+
+    <%- include('partials/tool-workflow', { tool: tool }) %>
+  </div>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

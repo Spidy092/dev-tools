@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'Settings' }) %>
+  <style>
+    .settings-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+    .settings-section h3 { font-size: 16px; margin-bottom: 16px; color: var(--accent); }
+    .setting-row { display: flex; justify-content: space-between; gap: 24px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-label { font-size: 14px; color: var(--text); font-weight: 600; }
+    .setting-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .setting-control select, .setting-control input[type="number"] { background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; color: var(--text); font-size: 13px; outline: none; min-width: 180px; }
+    .setting-control select:focus, .setting-control input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+    .settings-actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .save-settings-btn { background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 11px 24px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .reset-defaults-btn { background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 8px; padding: 10px 20px; font-size: 13px; cursor: pointer; }
+    @media (max-width:640px) { .setting-row { align-items:flex-start; flex-direction:column; } .setting-control, .setting-control select, .setting-control input { width:100%; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <%- include('partials/header', { pill: 'PREFERENCES', h1Left: 'User', h1Right: 'Settings', subtitle: 'Configure reusable defaults for DevToolkit processing.' }) %>
+
+    <section class="settings-section">
+      <h3>Image Tools</h3>
+      <div class="setting-row">
+        <div><div class="setting-label">Default Output Format</div><div class="setting-desc">Used by image conversion and compatible image workflows.</div></div>
+        <div class="setting-control"><select id="s-imgFormat"><option value="webp">WebP</option><option value="jpeg">JPEG</option><option value="png">PNG</option><option value="avif">AVIF</option></select></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Default Quality</div><div class="setting-desc">Image quality value from 1 to 100.</div></div>
+        <div class="setting-control"><input type="number" id="s-imgQuality" value="80" min="1" max="100"></div>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h3>PDF Compressor</h3>
+      <div class="setting-row">
+        <div><div class="setting-label">Compression Level</div><div class="setting-desc">Default guarded Ghostscript quality preset.</div></div>
+        <div class="setting-control"><select id="s-pdfLevel"><option value="/screen">Screen (smallest)</option><option value="/ebook">eBook (balanced)</option><option value="/printer">Printer (high quality)</option><option value="/prepress">Prepress (maximum quality)</option></select></div>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h3>Code Minifier</h3>
+      <div class="setting-row">
+        <div><div class="setting-label">Mangle Variables</div><div class="setting-desc">Shorten JavaScript variable names when minifying.</div></div>
+        <div class="setting-control"><select id="s-mangle"><option value="true">Yes</option><option value="false">No</option></select></div>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h3>General</h3>
+      <div class="setting-row">
+        <div><div class="setting-label">Show Onboarding Tour</div><div class="setting-desc">Show onboarding guidance to help explain tool controls.</div></div>
+        <div class="setting-control"><select id="s-showTour"><option value="true">Yes</option><option value="false">No</option></select></div>
+      </div>
+    </section>
+
+    <div class="settings-actions">
+      <button class="save-settings-btn" id="save-settings" type="button">Save Settings</button>
+      <button class="reset-defaults-btn" id="reset-settings" type="button">Reset to Defaults</button>
+    </div>
+  </div>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

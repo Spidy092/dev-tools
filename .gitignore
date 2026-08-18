@@ -3,7 +3,13 @@ vendor/
 .env
 *.zip
 *.pdf
+*.log
 .DS_Store
 .idea/
 .vscode/
-php-protector/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*_protected/
+uploads/
+tmp/
