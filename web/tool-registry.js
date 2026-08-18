@@ -40,6 +40,11 @@ const TOOLS = Object.freeze([
     workflow: { endpoint: '/file-tools/checksums/generate', resultMode: 'json', dropTitle: 'Drop a project folder here', dropSubtitle: 'Generate SHA-256 checksums or verify this folder against a saved DevToolkit manifest.', browseLabel: 'Browse project', excludePlaceholder: 'e.g. node_modules/*, .git/*, dist/*', processLabel: 'Generate Manifest', progressLabel: 'Hashing selected files…', completeLabel: 'Checksum operation complete!', resetLabel: 'Check another project', stats: [{ id: 'total', label: 'Files queued' }, { id: 'done', label: 'Hashed' }] }
   },
   {
+    id: 'text-normalizer', name: 'Line Ending & Encoding Normalizer', category: 'Code', icon: '↩️', route: '/text-normalizer', view: 'text-normalizer',
+    description: 'Normalize project text files to LF or CRLF and consistent UTF-8 BOM behavior while preserving binary files.', keywords: ['line endings', 'crlf', 'lf', 'utf8', 'bom', 'encoding', 'normalize', 'code'],
+    workflow: { endpoint: '/file-tools/normalize-text', dropTitle: 'Drop a project folder here', dropSubtitle: 'Normalize recognized text files while binary and unknown-encoding files pass through unchanged.', browseLabel: 'Browse project', excludePlaceholder: 'e.g. node_modules/*, .git/*, vendor/*, dist/*', processLabel: 'Normalize Text', progressLabel: 'Normalizing text files…', completeLabel: 'Text normalization complete!', downloadLabel: 'Download Normalized Project', resetLabel: 'Normalize another project', stats: [{ id: 'total', label: 'Files queued' }, { id: 'done', label: 'Processed' }] }
+  },
+  {
     id: 'code-minifier', name: 'Code Minifier', category: 'Code', icon: '⚡', route: '/code-minifier', view: 'code-minifier',
     description: 'Minify HTML, CSS, and JavaScript individually or across projects.', keywords: ['code', 'minify', 'html', 'css', 'javascript'],
     workflow: { endpoint: '/minify-tools/minify', dropTitle: 'Drop your codebase here', dropSubtitle: 'Review the project before minifying selected file types.', browseLabel: 'Browse project', excludePlaceholder: 'e.g. node_modules/*, *.min.js', processLabel: 'Minify Files', progressLabel: 'Minifying code…', completeLabel: 'Minification complete!', downloadLabel: 'Download Result', resetLabel: 'Minify more', stats: [{ id: 'total', label: 'Files queued' }, { id: 'done', label: 'Processed' }] }
