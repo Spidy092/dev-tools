@@ -35,6 +35,25 @@ const BASE_UNITS = Object.freeze({
   pdf: 4
 });
 
+function requestPath(req) {
+  return String(req?.originalUrl || req?.url || '').split('?')[0];
+}
+
+function kindForRequest(req) {
+  if (String(req?.method || '').toUpperCase() !== 'POST') return null;
+  const pathname = requestPath(req);
+  if (pathname === '/upload') return 'php';
+  if (pathname.startsWith('/image-tools/')) return 'image';
+  if (pathname.startsWith('/image-compressor-tools/')) return 'image';
+  if (pathname.startsWith('/pdf-tools/')) return 'pdf';
+  if (pathname.startsWith('/minify-tools/')) return 'code';
+  if (pathname.startsWith('/file-tools/checksums/')) return 'checksum';
+  if (pathname === '/file-tools/duplicates') return 'duplicate';
+  if (pathname === '/file-tools/normalize-text') return 'text';
+  if (pathname === '/file-tools/rename') return 'stream';
+  return null;
+}
+
 function estimateAdmission(kind, files) {
   const list = Array.isArray(files) ? files : [];
   const bytes = totalDeclaredBytes(list, RESOURCE_POLICY.coreBatchBytes);
@@ -52,7 +71,8 @@ function retryAfter(res, seconds = 5) {
 }
 
 function preflightAdmission() {
-  return (_req, res, next) => {
+  return (req, res, next) => {
+    if (!kindForRequest(req)) return next();
     const state = controller.snapshot();
     if (!state.accepting) {
       retryAfter(res);
@@ -160,6 +180,12 @@ function admissionMiddleware(kind) {
   };
 }
 
+async function admitUploadedRequest(req, res, next) {
+  const kind = kindForRequest(req);
+  if (!kind || !req.jobId) return next();
+  return admissionMiddleware(kind)(req, res, next);
+}
+
 function getAdmissionSnapshot() {
   return controller.snapshot();
 }
@@ -170,9 +196,11 @@ function shutdownAdmission(reason = 'shutdown') {
 
 module.exports = {
   BASE_UNITS,
+  kindForRequest,
   estimateAdmission,
   preflightAdmission,
   admissionMiddleware,
+  admitUploadedRequest,
   getAdmissionSnapshot,
   shutdownAdmission
 };
