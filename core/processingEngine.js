@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
+const { Readable } = require('stream');
 
 const MAX_CONCURRENCY = 8;
 const MIN_CHUNK_BYTES = 64 * 1024;
@@ -195,6 +196,33 @@ async function readFileBuffer(filePath, options = {}) {
   }
 }
 
+function createVerifiedReadStream(filePath, options = {}) {
+  validateFilePath(filePath);
+  const chunkBytes = normalizeChunkBytes(options.chunkBytes);
+
+  async function* source() {
+    const { handle, stat } = await openRegularFile(filePath, options);
+    let position = 0;
+    try {
+      while (position < stat.size) {
+        assertActive(options);
+        const length = Math.min(chunkBytes, stat.size - position);
+        const chunk = Buffer.allocUnsafe(length);
+        const { bytesRead } = await handle.read(chunk, 0, length, position);
+        if (bytesRead <= 0) throw new ProcessingError('UNEXPECTED_EOF', 'File ended before the expected size was read.');
+        position += bytesRead;
+        options.onBytes?.({ bytesRead, position, total: stat.size });
+        yield bytesRead === chunk.length ? chunk : chunk.subarray(0, bytesRead);
+      }
+      await verifyUnchanged(handle, stat, position, options);
+    } finally {
+      await handle.close().catch(() => {});
+    }
+  }
+
+  return Readable.from(source(), { objectMode: false, highWaterMark: chunkBytes });
+}
+
 async function fingerprintFile(filePath, options = {}) {
   const sampleBytes = clampInteger(options.sampleBytes, DEFAULT_SAMPLE_BYTES, 4096, 1024 * 1024);
   const { handle, stat } = await openRegularFile(filePath, options);
@@ -281,6 +309,7 @@ module.exports = {
   statRegularFile,
   hashFile,
   readFileBuffer,
+  createVerifiedReadStream,
   fingerprintFile,
   mapLimit
 };
