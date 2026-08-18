@@ -1,5 +1,6 @@
 const { AdmissionController, AdmissionError } = require('../core/admissionController');
 const { RESOURCE_POLICY, MiB, totalDeclaredBytes } = require('../core/resourcePolicy');
+const { cleanupJob } = require('./multer-setup');
 const {
   setJobStatus,
   endProgress,
@@ -94,6 +95,10 @@ function releaseOnce(lease) {
   };
 }
 
+function cleanupRejected(jobId) {
+  try { cleanupJob(jobId); } catch (_) {}
+}
+
 function admissionMiddleware(kind) {
   return async (req, res, next) => {
     const jobId = req.jobId;
@@ -102,6 +107,7 @@ function admissionMiddleware(kind) {
       throwIfCancelled(jobId);
       cost = estimateAdmission(kind, req.files || []);
     } catch (error) {
+      cleanupRejected(jobId);
       if (error instanceof JobCancelledError) {
         endProgress(jobId, 'cancelled');
         return res.status(499).json({ error: error.message });
@@ -145,6 +151,7 @@ function admissionMiddleware(kind) {
       res.once('close', release);
       next();
     } catch (error) {
+      cleanupRejected(jobId);
       if (error instanceof AdmissionError && error.code === 'ADMISSION_ABORTED') {
         if (res.destroyed || res.writableEnded) return;
         endProgress(jobId, 'cancelled');
