@@ -1,4 +1,10 @@
-const { sha256File } = require('./duplicateFinder');
+const {
+  validateFileItems,
+  hashFile,
+  mapLimit,
+  normalizeConcurrency,
+  assertActive
+} = require('./processingEngine');
 
 const MANIFEST_FORMAT = 'devtoolkit-manifest';
 const MANIFEST_VERSION = 1;
@@ -56,65 +62,97 @@ function toChecksumText(manifest) {
 }
 
 async function generateManifest(items, options = {}) {
-  const list = Array.isArray(items) ? items : [];
-  if (list.length > MAX_MANIFEST_FILES) throw new Error('Too many files for one manifest.');
-  const files = [];
-  for (const item of list) {
-    options.checkCancelled?.();
-    const relativePath = normalizeRelativePath(item.relativePath);
-    const size = Math.max(0, Number(item.size) || 0);
-    const sha256 = await sha256File(item.filePath, options.checkCancelled);
-    files.push({ path: relativePath, size, sha256 });
-    options.onHashed?.({ item, sha256, size });
-  }
-  files.sort((a, b) => a.path.localeCompare(b.path));
+  const list = validateFileItems(Array.isArray(items) ? items : [], {
+    maxItems: Math.min(MAX_MANIFEST_FILES, options.maxItems || MAX_MANIFEST_FILES),
+    maxTotalBytes: options.maxTotalBytes,
+    requireUniquePaths: true
+  }).map(item => ({ ...item, relativePath: normalizeRelativePath(item.relativePath) }));
+  const concurrency = normalizeConcurrency(options.concurrency);
+  const ioOptions = {
+    concurrency,
+    signal: options.signal,
+    checkCancelled: options.checkCancelled,
+    chunkBytes: options.chunkBytes
+  };
+
+  const hashed = await mapLimit(list, async item => {
+    assertActive(ioOptions);
+    const result = await hashFile(item.filePath, {
+      ...ioOptions,
+      expectedSize: item.size
+    });
+    options.onHashed?.({ item, sha256: result.hash, size: result.bytes });
+    return { path: item.relativePath, size: result.bytes, sha256: result.hash };
+  }, ioOptions);
+
+  hashed.sort((a, b) => a.path.localeCompare(b.path));
   return {
     format: MANIFEST_FORMAT,
     version: MANIFEST_VERSION,
     algorithm: ALGORITHM,
     generatedAt: new Date().toISOString(),
-    files
+    files: hashed
   };
 }
 
 async function verifyManifest(items, manifestValue, options = {}) {
   const manifest = normalizeManifest(manifestValue);
-  const current = new Map();
-  for (const item of Array.isArray(items) ? items : []) {
-    const relativePath = normalizeRelativePath(item.relativePath);
-    if (current.has(relativePath)) throw new Error('Current selection contains duplicate file paths.');
-    current.set(relativePath, item);
-  }
+  const list = validateFileItems(Array.isArray(items) ? items : [], {
+    maxItems: Math.min(MAX_MANIFEST_FILES, options.maxItems || MAX_MANIFEST_FILES),
+    maxTotalBytes: options.maxTotalBytes,
+    requireUniquePaths: true
+  }).map(item => ({ ...item, relativePath: normalizeRelativePath(item.relativePath) }));
 
+  const current = new Map(list.map(item => [item.relativePath, item]));
   const valid = [];
   const changed = [];
   const missing = [];
-  const hashed = [];
+  const hashCandidates = [];
 
   for (const expected of manifest.files) {
-    options.checkCancelled?.();
+    assertActive({ signal: options.signal, checkCancelled: options.checkCancelled });
     const item = current.get(expected.path);
     if (!item) {
       missing.push({ path: expected.path, expectedSize: expected.size, expectedSha256: expected.sha256 });
       continue;
     }
     current.delete(expected.path);
-    const actualSize = Math.max(0, Number(item.size) || 0);
-    if (actualSize !== expected.size) {
-      changed.push({ path: expected.path, reason: 'size', expectedSize: expected.size, actualSize, expectedSha256: expected.sha256, actualSha256: null });
+    if (item.size !== expected.size) {
+      changed.push({ path: expected.path, reason: 'size', expectedSize: expected.size, actualSize: item.size, expectedSha256: expected.sha256, actualSha256: null });
       continue;
     }
-    const actualSha256 = await sha256File(item.filePath, options.checkCancelled);
-    hashed.push(expected.path);
-    options.onHashed?.({ item, sha256: actualSha256, size: actualSize });
-    if (actualSha256 === expected.sha256) valid.push({ path: expected.path, size: actualSize, sha256: actualSha256 });
-    else changed.push({ path: expected.path, reason: 'checksum', expectedSize: expected.size, actualSize, expectedSha256: expected.sha256, actualSha256 });
+    hashCandidates.push({ expected, item });
   }
 
-  const added = Array.from(current.values()).map(item => ({
-    path: normalizeRelativePath(item.relativePath),
-    size: Math.max(0, Number(item.size) || 0)
-  })).sort((a, b) => a.path.localeCompare(b.path));
+  const concurrency = normalizeConcurrency(options.concurrency);
+  const ioOptions = {
+    concurrency,
+    signal: options.signal,
+    checkCancelled: options.checkCancelled,
+    chunkBytes: options.chunkBytes
+  };
+  const hashed = await mapLimit(hashCandidates, async pair => {
+    const result = await hashFile(pair.item.filePath, {
+      ...ioOptions,
+      expectedSize: pair.item.size
+    });
+    options.onHashed?.({ item: pair.item, sha256: result.hash, size: result.bytes });
+    return { pair, hash: result.hash, size: result.bytes };
+  }, ioOptions);
+
+  for (const result of hashed) {
+    const { expected } = result.pair;
+    if (result.hash === expected.sha256) {
+      valid.push({ path: expected.path, size: result.size, sha256: result.hash });
+    } else {
+      changed.push({ path: expected.path, reason: 'checksum', expectedSize: expected.size, actualSize: result.size, expectedSha256: expected.sha256, actualSha256: result.hash });
+    }
+  }
+
+  valid.sort((a, b) => a.path.localeCompare(b.path));
+  changed.sort((a, b) => a.path.localeCompare(b.path));
+  missing.sort((a, b) => a.path.localeCompare(b.path));
+  const added = Array.from(current.values()).map(item => ({ path: item.relativePath, size: item.size })).sort((a, b) => a.path.localeCompare(b.path));
 
   return {
     format: 'devtoolkit-manifest-verification',
@@ -123,7 +161,7 @@ async function verifyManifest(items, manifestValue, options = {}) {
     checkedAt: new Date().toISOString(),
     summary: {
       expected: manifest.files.length,
-      current: (Array.isArray(items) ? items : []).length,
+      current: list.length,
       hashed: hashed.length,
       valid: valid.length,
       changed: changed.length,
