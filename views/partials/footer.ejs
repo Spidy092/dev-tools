@@ -8,7 +8,7 @@
 <script nonce="<%= locals.nonce || '' %>">
 (function() {
   var nonce = '<%= locals.nonce || "" %>';
-  var scripts = ['/js/utils.js', '/js/settings.js', '/js/tool-controls.js', '/js/job-client.js', '/js/tool-preview.js', '/js/tool-presets.js', '/js/tool-runner-v2.js', '/js/tool-presets-ui.js', '/js/tool-preview-ui.js'];
+  var scripts = ['/js/utils.js', '/js/settings.js', '/js/tool-controls.js', '/js/job-client.js', '/js/tool-preview.js', '/js/tool-presets.js', '/js/folder-intelligence.js', '/js/tool-runner-v2.js', '/js/folder-intelligence-ui.js', '/js/tool-presets-ui.js', '/js/tool-preview-ui.js'];
   function load(i) {
     if (i >= scripts.length) return;
     var s = document.createElement('script');
