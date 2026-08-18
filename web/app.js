@@ -6,6 +6,7 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { router: progressRouter, getJobCounts, cancelAllActiveJobs, closeProgressClients } = require('./routes/progress');
+const { preflightAdmission, getAdmissionSnapshot, shutdownAdmission } = require('./admission');
 const { TOOLS, publicTools } = require('./tool-registry');
 const { uploadsDir, tmpDir, MAX_TOTAL_SIZE } = require('./multer-setup');
 
@@ -37,18 +38,22 @@ function readiness() {
   const memory = process.memoryUsage();
   const heapLimitMb = Math.max(128, Number(process.env.READINESS_MAX_HEAP_MB) || 1800);
   const memoryReady = memory.heapUsed < heapLimitMb * 1024 * 1024;
+  const admission = getAdmissionSnapshot();
+  const capacityReady = admission.accepting;
   return {
-    ready: !shuttingDown && directoriesReady && memoryReady,
+    ready: !shuttingDown && directoriesReady && memoryReady && capacityReady,
     checks: {
       shuttingDown,
       tempDirectoriesWritable: directoriesReady,
-      heapWithinLimit: memoryReady
+      heapWithinLimit: memoryReady,
+      processingCapacityAvailable: capacityReady
     },
     memory: {
       heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
       rssMb: Math.round(memory.rss / 1024 / 1024)
     },
-    jobs: getJobCounts()
+    jobs: getJobCounts(),
+    admission
   };
 }
 
@@ -81,6 +86,11 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// If the processing queue is already at its hard ceiling, reject known processor
+// POSTs before Multer writes another upload to temporary disk. The post-upload
+// gate still performs the authoritative weighted admission decision.
+app.use(preflightAdmission());
 
 // Serve versioned/static assets outside the API limiter.
 app.use(express.static(path.join(__dirname, '../public'), {
@@ -211,8 +221,9 @@ function startServer(port, retriesLeft = MAX_PORT_RETRIES) {
     if (shutdownStarted) return;
     shutdownStarted = true;
     shuttingDown = true;
+    const queuedClosed = shutdownAdmission(signal);
     const counts = getJobCounts();
-    console.log(`[Shutdown] ${signal} received. Active jobs: ${counts.active}`);
+    console.log(`[Shutdown] ${signal} received. Active jobs: ${counts.active}; queued admissions closed: ${queuedClosed}`);
 
     server.close(() => {
       closeProgressClients();
