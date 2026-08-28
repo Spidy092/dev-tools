@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><%- include('partials/head', { title: 'Checksum & Manifest' }) %></head>
+<body>
+  <div class="container" id="main-container">
+    <%- include('partials/header', { pill: 'FILE INTEGRITY', h1Left: 'Checksum &', h1Right: 'Manifest', subtitle: 'Generate SHA-256 project manifests and verify later snapshots for integrity changes.' }) %>
+
+    <div id="options-panel">
+      <div class="stats" style="grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        <div class="stat-card" style="text-align:left">
+          <div class="form-group">
+            <label for="checksumMode">Mode</label>
+            <select id="checksumMode"><option value="generate">Generate manifest</option><option value="verify">Verify saved manifest</option></select>
+          </div>
+          <div class="form-group" id="output-format-group">
+            <label for="outputFormat">Output format</label>
+            <select id="outputFormat"><option value="json">DevToolkit manifest.json</option><option value="sha256">checksums.sha256</option></select>
+          </div>
+        </div>
+        <div class="stat-card" style="text-align:left">
+          <div class="form-group hidden" id="manifest-file-group">
+            <label for="manifest-file-input">Saved manifest.json</label>
+            <input type="file" id="manifest-file-input" accept="application/json,.json">
+            <input type="hidden" id="manifestJson" value="">
+            <p style="font-size:11px;margin-top:6px;color:var(--text-muted)">Verification manifests are currently limited to 128 KB by the hardened form-field limit.</p>
+          </div>
+          <p style="font-size:11px;color:var(--text-muted)">SHA-256 hashing is server-processed on your running DevToolkit instance. Verification is read-only and never modifies project files.</p>
+        </div>
+      </div>
+    </div>
+
+    <%- include('partials/tool-workflow', { tool: tool }) %>
+
+    <section id="checksum-results" class="results-panel hidden" aria-live="polite">
+      <div class="results-heading"><div><p class="results-eyebrow">Integrity result</p><h2 id="checksum-results-title">Checksum complete</h2><p id="checksum-results-subtitle" class="results-subtitle"></p></div><span id="checksum-results-state" class="results-state results-state-success">Complete</span></div>
+      <div id="checksum-result-metrics" class="results-metrics"></div>
+      <div id="checksum-result-list" class="duplicate-groups"></div>
+      <div class="results-actions"><button id="checksum-download-btn" class="download-btn hidden" type="button">Download manifest</button><button id="checksum-back-btn" class="secondary-action" type="button">Back to queue</button></div>
+    </section>
+  </div>
+  <%- include('partials/footer') %>
+</body>
+</html>

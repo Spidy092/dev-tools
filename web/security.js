@@ -1,5 +1,6 @@
 const path = require('path');
 const { cleanupJob } = require('./multer-setup');
+const { admitUploadedRequest } = require('./admission');
 
 /**
  * Normalize a user-provided relative path for archive/file output use.
@@ -39,8 +40,11 @@ function normalizePaths(paths, files = []) {
  * Apply after Multer has parsed an upload. The reverse proxy should also
  * enforce request-body limits in production so oversized payloads are rejected
  * before being written to temporary storage.
+ *
+ * This is also the shared post-upload admission boundary. No processor is
+ * entered until paths are safe and the global scheduler grants a lease.
  */
-function validateUploadedFiles(req, res, next) {
+async function validateUploadedFiles(req, res, next) {
   try {
     const files = req.files || [];
     if (!files.length) {
@@ -48,14 +52,21 @@ function validateUploadedFiles(req, res, next) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    // Validate every client-provided relative path before a route can use it.
+    // Validate every client-provided relative path before admission so queued
+    // jobs can never reserve capacity using unsafe output paths.
     req.safePaths = normalizePaths(req.body.paths, files);
-    next();
   } catch (_error) {
     // Multer has already written the upload by this stage. Invalid client paths
     // must not leave rejected files behind until the periodic stale-file sweep.
     cleanupJob(req.jobId);
     return res.status(400).json({ error: 'One or more uploaded file paths are invalid.' });
+  }
+
+  try {
+    return await admitUploadedRequest(req, res, next);
+  } catch (error) {
+    cleanupJob(req.jobId);
+    return next(error);
   }
 }
 

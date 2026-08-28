@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'Line Ending & Encoding Normalizer' }) %>
+</head>
+<body>
+  <div class="container" id="main-container">
+    <%- include('partials/header', { pill: 'PROJECT NORMALIZATION', h1Left: 'Line Ending &', h1Right: 'Encoding Normalizer', subtitle: 'Normalize recognized project text files safely while binary and unknown-encoding files pass through unchanged.' }) %>
+
+    <div id="options-panel">
+      <div class="stats" style="grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        <div class="stat-card">
+          <div class="form-group">
+            <label for="lineEnding">Line endings</label>
+            <select id="lineEnding">
+              <option value="lf" selected>LF — Linux / macOS</option>
+              <option value="crlf">CRLF — Windows</option>
+              <option value="preserve">Preserve current endings</option>
+            </select>
+            <p style="font-size:11px;margin-top:6px;color:var(--text-muted)">Mixed CR, LF, and CRLF text is normalized consistently when LF or CRLF is selected.</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="form-group">
+            <label for="encodingMode">Text encoding output</label>
+            <select id="encodingMode">
+              <option value="utf8" selected>UTF-8 without BOM</option>
+              <option value="utf8-bom">UTF-8 with BOM</option>
+              <option value="preserve">Preserve recognized encoding</option>
+            </select>
+            <p style="font-size:11px;margin-top:6px;color:var(--text-muted)">Recognizes UTF-8, UTF-8 BOM, UTF-16LE BOM, and UTF-16BE BOM. Unknown encodings are passed through unchanged.</p>
+          </div>
+        </div>
+      </div>
+      <div class="stat-card" style="text-align:left;margin-bottom:20px">
+        <strong>Safety policy</strong>
+        <p style="margin-top:8px;color:var(--text-muted)">Binary files, files containing null bytes, and text with unsupported/unknown encodings are never guessed. They are copied byte-for-byte into the result archive.</p>
+      </div>
+    </div>
+
+    <%- include('partials/tool-workflow', { tool: tool }) %>
+  </div>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

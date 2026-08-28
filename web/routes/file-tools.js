@@ -1,20 +1,284 @@
 const express = require('express');
 const router = express.Router();
-const archiver = require('archiver');
 const path = require('path');
-const fs = require('fs');
+const { pipeline } = require('stream/promises');
 const { upload, cleanupJob, enforceTotalSize } = require('../multer-setup');
 const { validateUploadedFiles, safeRelativePath } = require('../security');
-const { prepareJob, sendProgress, endProgress, throwIfCancelled, JobCancelledError } = require('./progress');
+const {
+  prepareJob,
+  sendProgress,
+  endProgress,
+  throwIfCancelled,
+  getJobSignal,
+  JobCancelledError
+} = require('./progress');
+const { findDuplicates } = require('../../core/duplicateFinder');
+const { generateManifest, verifyManifest, toChecksumText } = require('../../core/checksumManifest');
+const { normalizeFile, DEFAULT_MAX_TEXT_BYTES } = require('../../core/textNormalizer');
+const { createVerifiedReadStream } = require('../../core/processingEngine');
+const { writeZip } = require('../../core/archiveEngine');
+
+const MANIFEST_FIELD_LIMIT = 120 * 1024;
+
+function attachCleanup(res, jobId) {
+  const onEnd = () => cleanupJob(jobId);
+  res.on('finish', onEnd);
+  res.on('close', onEnd);
+}
+
+function manifestItems(files, paths) {
+  return files.map((file, index) => ({ filePath: file.path, relativePath: paths[index], size: file.size }));
+}
+
+function jobCoreOptions(jobId) {
+  return {
+    signal: getJobSignal(jobId),
+    checkCancelled: () => throwIfCancelled(jobId)
+  };
+}
+
+function isCancellationError(error, jobId) {
+  if (error instanceof JobCancelledError || error?.code === 'PROCESSING_ABORTED') return true;
+  try {
+    throwIfCancelled(jobId);
+  } catch (cancelError) {
+    return cancelError instanceof JobCancelledError;
+  }
+  return false;
+}
+
+function declaredTotalBytes(files) {
+  let total = 0;
+  for (const file of files) {
+    const size = Number(file.size);
+    if (!Number.isSafeInteger(size) || size < 0) throw new Error('Uploaded file size metadata is invalid.');
+    total += size;
+    if (!Number.isSafeInteger(total)) throw new Error('Uploaded file total exceeds the safe integer range.');
+  }
+  return total;
+}
+
+router.post('/checksums/generate', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
+  const files = req.files || [];
+  const paths = req.safePaths || [];
+  const jobId = req.jobId;
+  attachCleanup(res, jobId);
+
+  if (!files.length) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'No files uploaded.' });
+  }
+
+  const output = String(req.body.outputFormat || 'json').toLowerCase();
+  if (!['json', 'manifest', 'sha256'].includes(output)) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'Unsupported checksum output format.' });
+  }
+
+  try {
+    const manifest = await generateManifest(manifestItems(files, paths), {
+      ...jobCoreOptions(jobId),
+      onHashed: ({ item, size }) => sendProgress(jobId, {
+        event: 'file', file: item.relativePath, type: 'scan', originalSize: size, compressedSize: size
+      })
+    });
+    endProgress(jobId, 'completed');
+    res.setHeader('Cache-Control', 'no-store');
+    if (output === 'sha256') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="checksums.sha256"');
+      return res.send(toChecksumText(manifest));
+    }
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="manifest.json"');
+    return res.json(manifest);
+  } catch (err) {
+    if (isCancellationError(err, jobId)) {
+      endProgress(jobId, 'cancelled');
+      return res.status(499).json({ error: 'Processing cancelled.' });
+    }
+    console.error('[Checksum Generate Error]', err);
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: err.message || 'Checksum generation failed.' });
+  }
+});
+
+router.post('/checksums/verify', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
+  const files = req.files || [];
+  const paths = req.safePaths || [];
+  const jobId = req.jobId;
+  attachCleanup(res, jobId);
+
+  if (!files.length) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'No files uploaded.' });
+  }
+
+  const manifestJson = String(req.body.manifestJson || '');
+  if (!manifestJson || Buffer.byteLength(manifestJson, 'utf8') > MANIFEST_FIELD_LIMIT) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'Manifest JSON is missing or exceeds the 120 KB verification limit.' });
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(manifestJson);
+  } catch (_error) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'Manifest JSON is invalid.' });
+  }
+
+  try {
+    const report = await verifyManifest(manifestItems(files, paths), manifest, {
+      ...jobCoreOptions(jobId),
+      onHashed: ({ item, size }) => sendProgress(jobId, {
+        event: 'file', file: item.relativePath, type: 'scan', originalSize: size, compressedSize: size
+      })
+    });
+    endProgress(jobId, 'completed');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(report);
+  } catch (err) {
+    if (isCancellationError(err, jobId)) {
+      endProgress(jobId, 'cancelled');
+      return res.status(499).json({ error: 'Processing cancelled.' });
+    }
+    console.error('[Checksum Verify Error]', err);
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: err.message || 'Manifest verification failed.' });
+  }
+});
+
+router.post('/duplicates', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
+  const files = req.files || [];
+  const paths = req.safePaths || [];
+  const jobId = req.jobId;
+  attachCleanup(res, jobId);
+
+  if (files.length < 2) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'Select at least two files to find duplicates.' });
+  }
+
+  const minimumSize = Math.max(0, Number(req.body.minimumSizeBytes) || 0);
+  const ignoreEmpty = req.body.ignoreEmpty !== 'false';
+  const items = manifestItems(files, paths);
+
+  try {
+    const report = await findDuplicates(items, {
+      minimumSize,
+      ignoreEmpty,
+      ...jobCoreOptions(jobId),
+      onHashed: ({ item, size }) => sendProgress(jobId, {
+        event: 'file',
+        file: item.relativePath,
+        type: 'scan',
+        originalSize: size,
+        compressedSize: size
+      })
+    });
+    endProgress(jobId, 'completed');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(report);
+  } catch (err) {
+    if (isCancellationError(err, jobId)) {
+      endProgress(jobId, 'cancelled');
+      return res.status(499).json({ error: 'Processing cancelled.' });
+    }
+    console.error('[Duplicate Finder Error]', err);
+    endProgress(jobId, 'failed');
+    return res.status(500).json({ error: 'Duplicate scan failed.' });
+  }
+});
+
+router.post('/normalize-text', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
+  const files = req.files || [];
+  const paths = req.safePaths || [];
+  const jobId = req.jobId;
+  attachCleanup(res, jobId);
+
+  if (!files.length) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'No files uploaded.' });
+  }
+
+  const lineEnding = String(req.body.lineEnding || 'lf').toLowerCase();
+  const encodingMode = String(req.body.encodingMode || 'utf8').toLowerCase();
+  if (!['preserve', 'lf', 'crlf'].includes(lineEnding) || !['preserve', 'utf8', 'utf8-bom'].includes(encodingMode)) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'Unsupported normalization settings.' });
+  }
+
+  const processOne = async (file, relativePath) => {
+    const result = await normalizeFile(file.path, {
+      lineEnding,
+      encodingMode,
+      expectedSize: file.size,
+      maxBytes: DEFAULT_MAX_TEXT_BYTES,
+      ...jobCoreOptions(jobId)
+    });
+    sendProgress(jobId, {
+      event: 'file',
+      file: relativePath,
+      type: result.skipped ? 'skip' : 'process',
+      originalSize: result.inputBytes,
+      compressedSize: result.output.length,
+      changed: result.changed,
+      sourceEncoding: result.sourceEncoding,
+      outputEncoding: result.outputEncoding,
+      sourceLineEnding: result.sourceLineEnding,
+      outputLineEnding: result.outputLineEnding,
+      reason: result.reason
+    });
+    return result;
+  };
+
+  try {
+    if (files.length === 1) {
+      const result = await processOne(files[0], paths[0]);
+      endProgress(jobId, 'completed');
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(paths[0])}"`);
+      return res.send(result.output);
+    }
+
+    const entries = files.map((file, index) => ({
+      name: safeRelativePath(paths[index]),
+      size: file.size,
+      open: async () => (await processOne(file, paths[index])).output
+    }));
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="normalized-${Date.now()}.zip"`);
+    await writeZip(res, entries, {
+      level: 9,
+      maxBufferBytes: DEFAULT_MAX_TEXT_BYTES,
+      maxTotalBytes: declaredTotalBytes(files),
+      ...jobCoreOptions(jobId)
+    });
+  } catch (err) {
+    if (isCancellationError(err, jobId)) {
+      endProgress(jobId, 'cancelled');
+      if (!res.headersSent) return res.status(499).json({ error: 'Processing cancelled.' });
+      if (!res.writableEnded) res.end();
+      return;
+    }
+    console.error('[Text Normalizer Error]', err);
+    endProgress(jobId, 'failed');
+    if (!res.headersSent) {
+      const status = err?.code === 'FILE_SIZE_LIMIT' || err?.code === 'ARCHIVE_BUFFER_LIMIT' ? 413 : 500;
+      return res.status(status).json({ error: err?.code === 'FILE_SIZE_LIMIT' ? 'A text file exceeds the 32 MB normalization memory limit.' : 'Text normalization failed.' });
+    }
+    if (!res.writableEnded) res.end();
+  }
+});
 
 router.post('/rename', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
   const { casing, separator, strictClean, collapseHyphens, organizeByExtension, renamePattern } = req.body;
   const files = req.files || [];
   const paths = req.safePaths || [];
   const jobId = req.jobId;
-  const onEnd = () => cleanupJob(jobId);
-  res.on('finish', onEnd);
-  res.on('close', onEnd);
+  attachCleanup(res, jobId);
 
   if (!files.length) {
     endProgress(jobId, 'failed');
@@ -55,69 +319,69 @@ router.post('/rename', prepareJob, upload.array('files'), enforceTotalSize, vali
     return safeRelativePath(finalPath);
   };
 
-  if (files.length === 1) {
-    try {
-      throwIfCancelled(jobId);
+  try {
+    if (files.length === 1) {
       const outName = path.basename(renamer(paths[0], 0));
-      const output = await fs.promises.readFile(files[0].path);
-      throwIfCancelled(jobId);
-      sendProgress(jobId, { event: 'file', file: paths[0], type: 'process', originalSize: output.length, compressedSize: output.length });
-      endProgress(jobId, 'completed');
+      const source = createVerifiedReadStream(files[0].path, {
+        expectedSize: files[0].size,
+        ...jobCoreOptions(jobId),
+        onComplete: ({ bytes }) => sendProgress(jobId, {
+          event: 'file', file: paths[0], type: 'process', originalSize: bytes, compressedSize: bytes
+        })
+      });
       res.setHeader('Content-Disposition', `attachment; filename="${outName}"`);
       res.setHeader('Content-Type', 'application/octet-stream');
-      return res.send(output);
-    } catch (err) {
-      if (err instanceof JobCancelledError) {
-        endProgress(jobId, 'cancelled');
-        return res.status(499).json({ error: err.message });
-      }
-      console.error('[Single Rename Error]', err);
-      endProgress(jobId, 'failed');
-      return res.status(500).send('Processing failed');
+      await pipeline(source, res);
+      return;
     }
-  }
 
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="renamed-${Date.now()}.zip"`);
-  const archive = archiver('zip', { zlib: { level: 9 } });
-  archive.on('error', err => {
-    console.error('[Archive Error]', err);
-    endProgress(jobId, 'failed');
-    if (!res.headersSent) res.status(500).json({ error: 'Archive failed' });
-  });
-  archive.pipe(res);
-
-  try {
     const usedNames = new Set();
-    for (let i = 0; i < files.length; i++) {
-      throwIfCancelled(jobId);
-      const sourcePath = organizeByExtension === 'true' ? path.posix.basename(paths[i]) : paths[i];
-      const candidate = renamer(sourcePath, i);
+    const entries = files.map((file, index) => {
+      const sourcePath = organizeByExtension === 'true' ? path.posix.basename(paths[index]) : paths[index];
+      const candidate = renamer(sourcePath, index);
       let uniquePath = candidate;
       let counter = 1;
-      while (usedNames.has(uniquePath)) {
+      while (usedNames.has(uniquePath.toLocaleLowerCase('en-US'))) {
         const parsed = path.posix.parse(candidate);
         uniquePath = safeRelativePath(path.posix.join(parsed.dir, `${parsed.name}-${counter}${parsed.ext}`));
         counter++;
       }
-      usedNames.add(uniquePath);
-      const output = await fs.promises.readFile(files[i].path);
-      throwIfCancelled(jobId);
-      archive.append(output, { name: uniquePath });
-      sendProgress(jobId, { event: 'file', file: paths[i], type: 'process', originalSize: output.length, compressedSize: output.length });
-    }
-    endProgress(jobId, 'completed');
-    archive.finalize();
+      usedNames.add(uniquePath.toLocaleLowerCase('en-US'));
+      return {
+        name: uniquePath,
+        filePath: file.path,
+        size: file.size,
+        sourcePath: paths[index]
+      };
+    });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="renamed-${Date.now()}.zip"`);
+    await writeZip(res, entries, {
+      level: 9,
+      maxTotalBytes: declaredTotalBytes(files),
+      ...jobCoreOptions(jobId),
+      onEntryComplete: ({ entry, outputBytes }) => sendProgress(jobId, {
+        event: 'file',
+        file: entry.sourcePath,
+        type: 'process',
+        originalSize: entry.size,
+        compressedSize: outputBytes
+      })
+    });
   } catch (err) {
-    if (err instanceof JobCancelledError) {
+    if (isCancellationError(err, jobId)) {
       endProgress(jobId, 'cancelled');
-      try { archive.abort(); } catch (_) {}
+      if (!res.headersSent) return res.status(499).json({ error: 'Processing cancelled.' });
       if (!res.writableEnded) res.end();
       return;
     }
-    console.error('[Bulk Rename Error]', err);
+    console.error('[Rename Error]', err);
     endProgress(jobId, 'failed');
-    try { archive.abort(); } catch (_) {}
+    if (!res.headersSent) {
+      const userError = ['NON_PORTABLE_ARCHIVE_PATH', 'PORTABLE_ARCHIVE_COLLISION', 'ARCHIVE_PATH_TOO_LONG'].includes(err?.code);
+      return res.status(userError ? 400 : 500).json({ error: userError ? err.message : 'Renaming failed.' });
+    }
     if (!res.writableEnded) res.end();
   }
 });

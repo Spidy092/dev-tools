@@ -23,113 +23,44 @@
       </div>
     </div>
 
+    <section id="folder-intelligence" class="folder-intelligence hidden" aria-live="polite">
+      <div class="folder-intelligence-heading">
+        <div><p class="queue-eyebrow">Folder intelligence</p><h3 id="folder-intelligence-title">Project summary</h3></div>
+        <button id="folder-filter-clear" class="queue-link-btn" type="button">Show all</button>
+      </div>
+      <div id="folder-intelligence-stats" class="folder-intelligence-stats"></div>
+      <div id="folder-intelligence-filters" class="folder-filter-chips" aria-label="Quick file filters"></div>
+      <div class="folder-intelligence-detail-grid">
+        <div><strong>Top file types</strong><div id="folder-intelligence-types" class="folder-type-list"></div></div>
+        <div><strong>Largest files</strong><div id="folder-intelligence-largest" class="folder-largest-list"></div></div>
+      </div>
+    </section>
+
     <div class="queue-toolbar">
-      <div class="queue-search-wrap">
-        <label class="sr-only" for="queue-search">Search files</label>
-        <input type="search" id="queue-search" class="queue-search" placeholder="Search files or paths…" autocomplete="off">
-      </div>
-      <div class="queue-toolbar-actions">
-        <button id="select-all-btn" class="queue-link-btn" type="button">Select visible</button>
-        <button id="deselect-all-btn" class="queue-link-btn" type="button">Deselect visible</button>
-        <button id="remove-selected-btn" class="queue-link-btn danger" type="button">Remove selected</button>
-      </div>
+      <div class="queue-search-wrap"><label class="sr-only" for="queue-search">Search files</label><input type="search" id="queue-search" class="queue-search" placeholder="Search files or paths…" autocomplete="off"></div>
+      <div class="queue-toolbar-actions"><button id="select-all-btn" class="queue-link-btn" type="button">Select visible</button><button id="deselect-all-btn" class="queue-link-btn" type="button">Deselect visible</button><button id="remove-selected-btn" class="queue-link-btn danger" type="button">Remove selected</button></div>
     </div>
 
-    <div class="form-group queue-excludes">
-      <label for="exclude-patterns">Exclude patterns</label>
-      <input type="text" id="exclude-patterns" class="exclude-input" placeholder="<%= tool.workflow.excludePlaceholder || 'e.g. node_modules/*, *.tmp' %>">
-    </div>
+    <div class="form-group queue-excludes"><label for="exclude-patterns">Exclude patterns</label><input type="text" id="exclude-patterns" class="exclude-input" placeholder="<%= tool.workflow.excludePlaceholder || 'e.g. node_modules/*, *.tmp' %>"></div>
 
     <div class="queue-table" role="table" aria-label="Selected files">
-      <div class="queue-row queue-table-head" role="row">
-        <div role="columnheader" class="queue-check"><span class="sr-only">Selected</span></div>
-        <div role="columnheader">File</div>
-        <div role="columnheader" class="queue-size">Size</div>
-        <div role="columnheader" class="queue-status">Status</div>
-        <div role="columnheader" class="queue-remove"><span class="sr-only">Remove</span></div>
-      </div>
-      <div id="file-tree" class="queue-table-body" role="rowgroup" aria-live="polite"></div>
-      <div id="queue-empty" class="queue-empty hidden">No files match your search.</div>
+      <div class="queue-row queue-table-head" role="row"><div role="columnheader" class="queue-check"><span class="sr-only">Selected</span></div><div role="columnheader">File</div><div role="columnheader" class="queue-size">Size</div><div role="columnheader" class="queue-status">Status</div><div role="columnheader" class="queue-remove"><span class="sr-only">Remove</span></div></div>
+      <div id="file-tree" class="queue-table-body" role="rowgroup" aria-live="polite"></div><div id="queue-empty" class="queue-empty hidden">No files match your search.</div>
     </div>
-
     <div id="queue-overflow-note" class="queue-overflow-note hidden"></div>
-
-    <div class="queue-action-bar" id="queue-action-bar">
-      <div>
-        <strong id="queue-selected-count">0 selected</strong>
-        <span id="queue-selected-size">0 B</span>
-      </div>
-      <button id="proceed-btn" class="browse-btn tool-primary-action" type="button" disabled><%= tool.workflow.processLabel || 'Process Files' %></button>
-    </div>
+    <div class="queue-action-bar" id="queue-action-bar"><div><strong id="queue-selected-count">0 selected</strong><span id="queue-selected-size">0 B</span></div><button id="proceed-btn" class="browse-btn tool-primary-action" type="button" disabled>Preview changes</button></div>
   </div>
+
+  <section id="preview-panel" class="preview-panel hidden" aria-live="polite">
+    <div class="preview-heading"><div><p class="queue-eyebrow">Dry run</p><h2>Preview changes before processing</h2><p id="preview-summary" class="queue-summary">Review what this operation will do.</p></div><span class="preview-badge">Nothing has changed yet</span></div>
+    <div id="preview-stats" class="preview-stats"></div><div id="preview-warnings" class="preview-warnings"></div>
+    <div class="preview-table-head"><span>Input</span><span></span><span>Planned output</span></div><div id="preview-body" class="preview-body"></div>
+    <div class="preview-actions"><button id="preview-back-btn" class="secondary-action" type="button">Back to queue</button><button id="preview-confirm-btn" class="browse-btn" type="button"><%= tool.workflow.processLabel || 'Process Files' %></button></div>
+  </section>
 </section>
 
-<div id="stats" class="stats hidden">
-  <% (tool.workflow.stats || []).forEach(function(stat) { %>
-    <div class="stat-card">
-      <div class="stat-val" id="stat-<%= stat.id %>"><%= stat.initial || '0' %></div>
-      <div class="stat-label"><%= stat.label %></div>
-    </div>
-  <% }) %>
-</div>
-
-<div id="progress-wrap" class="progress-wrap hidden" aria-live="polite">
-  <div class="progress-label">
-    <span id="progress-text"><%= tool.workflow.progressLabel || 'Processing…' %></span>
-    <span id="progress-pct">0%</span>
-  </div>
-  <div class="progress-track"><div id="progress-bar" class="progress-bar" style="width:0%"></div></div>
-  <div class="processing-actions">
-    <button id="cancel-job-btn" class="secondary-action danger hidden" type="button">Cancel processing</button>
-    <span class="processing-note">Cancellation is cooperative; the file currently being processed may finish first.</span>
-  </div>
-</div>
-
-<div id="log-wrap" class="log-wrap hidden">
-  <div class="log-header"><span class="log-dot"></span> Live Processing Log</div>
-  <div id="log" class="log" aria-live="polite"></div>
-</div>
-
-<section id="results-panel" class="results-panel hidden" aria-live="polite">
-  <div class="results-heading">
-    <div>
-      <p class="results-eyebrow">Batch result</p>
-      <h2 id="results-title"><%= tool.workflow.completeLabel || 'Processing complete!' %></h2>
-      <p id="results-subtitle" class="results-subtitle">Your processed result is ready.</p>
-    </div>
-    <span id="results-state" class="results-state results-state-success">Complete</span>
-  </div>
-
-  <div class="results-metrics" aria-label="Processing summary">
-    <div class="result-metric"><span>Successful</span><strong id="result-success-count">0</strong></div>
-    <div class="result-metric"><span>Skipped</span><strong id="result-skipped-count">0</strong></div>
-    <div class="result-metric"><span>Failed</span><strong id="result-failed-count">0</strong></div>
-    <div class="result-metric"><span>Input size</span><strong id="result-input-size">—</strong></div>
-    <div class="result-metric"><span>Output size</span><strong id="result-output-size">—</strong></div>
-    <div class="result-metric"><span>Saved</span><strong id="result-saved-percent">—</strong></div>
-  </div>
-
-  <div class="results-table" role="table" aria-label="File processing results">
-    <div class="results-row results-table-head" role="row">
-      <div role="columnheader">File</div>
-      <div role="columnheader" class="result-status-col">Status</div>
-      <div role="columnheader" class="result-size-col">Input</div>
-      <div role="columnheader" class="result-size-col">Output</div>
-      <div role="columnheader" class="result-saved-col">Saved</div>
-    </div>
-    <div id="results-body" class="results-table-body" role="rowgroup"></div>
-  </div>
-
-  <div class="results-actions">
-    <button id="download-btn" class="download-btn" type="button"><%= tool.workflow.downloadLabel || 'Download Result' %></button>
-    <button id="retry-failed-btn" class="secondary-action hidden" type="button">Retry failed</button>
-    <button id="review-queue-btn" class="secondary-action" type="button">Back to queue</button>
-    <button id="reset-btn" class="reset-btn" type="button"><%= tool.workflow.resetLabel || 'Process more' %></button>
-  </div>
-  <p class="results-download-note">Downloads are provided exactly as the processor returns them. Multi-file jobs are typically packaged as one archive.</p>
-</section>
-
-<script nonce="<%= locals.nonce || '' %>">
-  window.toolEndpoint = <%- JSON.stringify(tool.workflow.endpoint) %>;
-  window.toolProcessLabel = <%- JSON.stringify(tool.workflow.processLabel || 'Process Files') %>;
-</script>
+<div id="stats" class="stats hidden"><% (tool.workflow.stats || []).forEach(function(stat) { %><div class="stat-card"><div class="stat-val" id="stat-<%= stat.id %>"><%= stat.initial || '0' %></div><div class="stat-label"><%= stat.label %></div></div><% }) %></div>
+<div id="progress-wrap" class="progress-wrap hidden" aria-live="polite"><div class="progress-label"><span id="progress-text"><%= tool.workflow.progressLabel || 'Processing…' %></span><span id="progress-pct">0%</span></div><div class="progress-track"><div id="progress-bar" class="progress-bar" style="width:0%"></div></div><div class="processing-actions"><button id="cancel-job-btn" class="secondary-action danger hidden" type="button">Cancel processing</button><span class="processing-note">Cancellation is cooperative; the file currently being processed may finish first.</span></div></div>
+<div id="log-wrap" class="log-wrap hidden"><div class="log-header"><span class="log-dot"></span> Live Processing Log</div><div id="log" class="log" aria-live="polite"></div></div>
+<section id="results-panel" class="results-panel hidden" aria-live="polite"><div class="results-heading"><div><p class="results-eyebrow">Batch result</p><h2 id="results-title"><%= tool.workflow.completeLabel || 'Processing complete!' %></h2><p id="results-subtitle" class="results-subtitle">Your processed result is ready.</p></div><span id="results-state" class="results-state results-state-success">Complete</span></div><div class="results-metrics" aria-label="Processing summary"><div class="result-metric"><span>Successful</span><strong id="result-success-count">0</strong></div><div class="result-metric"><span>Skipped</span><strong id="result-skipped-count">0</strong></div><div class="result-metric"><span>Failed</span><strong id="result-failed-count">0</strong></div><div class="result-metric"><span>Input size</span><strong id="result-input-size">—</strong></div><div class="result-metric"><span>Output size</span><strong id="result-output-size">—</strong></div><div class="result-metric"><span>Saved</span><strong id="result-saved-percent">—</strong></div></div><div class="results-table" role="table" aria-label="File processing results"><div class="results-row results-table-head" role="row"><div role="columnheader">File</div><div role="columnheader" class="result-status-col">Status</div><div role="columnheader" class="result-size-col">Input</div><div role="columnheader" class="result-size-col">Output</div><div role="columnheader" class="result-saved-col">Saved</div></div><div id="results-body" class="results-table-body" role="rowgroup"></div></div><div class="results-actions"><button id="download-btn" class="download-btn" type="button"><%= tool.workflow.downloadLabel || 'Download Result' %></button><button id="retry-failed-btn" class="secondary-action hidden" type="button">Retry failed</button><button id="review-queue-btn" class="secondary-action" type="button">Back to queue</button><button id="reset-btn" class="reset-btn" type="button"><%= tool.workflow.resetLabel || 'Process more' %></button></div><p class="results-download-note">Downloads are provided exactly as the processor returns them. Multi-file jobs are typically packaged as one archive.</p></section>
+<script nonce="<%= locals.nonce || '' %>">window.toolEndpoint=<%- JSON.stringify(tool.workflow.endpoint) %>;window.toolProcessLabel=<%- JSON.stringify(tool.workflow.processLabel || 'Process Files') %>;window.toolResultMode=<%- JSON.stringify(tool.workflow.resultMode || 'download') %>;</script>

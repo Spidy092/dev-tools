@@ -1,12 +1,44 @@
 const express = require('express');
 const router = express.Router();
-const archiver = require('archiver');
 const path = require('path');
-const fs = require('fs');
+const { pipeline } = require('stream/promises');
 const { upload, cleanupJob, enforceTotalSize } = require('../multer-setup');
 const { validateUploadedFiles, safeRelativePath } = require('../security');
 const { resizeImage, convertImage } = require('../../core/imageProcessor');
-const { prepareJob, sendProgress, endProgress, throwIfCancelled, JobCancelledError } = require('./progress');
+const { readFileBuffer, createVerifiedReadStream } = require('../../core/processingEngine');
+const { writeZip } = require('../../core/archiveEngine');
+const { RESOURCE_POLICY, totalDeclaredBytes } = require('../../core/resourcePolicy');
+const {
+  prepareJob,
+  sendProgress,
+  endProgress,
+  throwIfCancelled,
+  getJobSignal,
+  JobCancelledError
+} = require('./progress');
+
+const SUPPORTED_IMAGES = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif', '.gif', '.avif']);
+
+function coreOptions(jobId) {
+  return { signal: getJobSignal(jobId), checkCancelled: () => throwIfCancelled(jobId) };
+}
+
+function cancelled(error, jobId) {
+  if (error instanceof JobCancelledError || error?.code === 'PROCESSING_ABORTED') return true;
+  try { throwIfCancelled(jobId); } catch (err) { return err instanceof JobCancelledError; }
+  return false;
+}
+
+function mimeFor(name, supported) {
+  if (!supported) return 'application/octet-stream';
+  const ext = path.extname(name).toLowerCase();
+  const map = {
+    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+    '.webp': 'image/webp', '.avif': 'image/avif', '.tif': 'image/tiff',
+    '.tiff': 'image/tiff', '.gif': 'image/gif'
+  };
+  return map[ext] || 'application/octet-stream';
+}
 
 async function handleProcessResponse(req, res, files, paths, processor, renamer = null) {
   const jobId = req.jobId;
@@ -20,91 +52,133 @@ async function handleProcessResponse(req, res, files, paths, processor, renamer 
   }
 
   const processOne = async (file, relativePath, index) => {
-    throwIfCancelled(jobId);
     const ext = path.extname(relativePath).toLowerCase();
-    const supported = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif', '.gif', '.avif']);
-    const input = await fs.promises.readFile(file.path);
+    const supported = SUPPORTED_IMAGES.has(ext);
+    if (!supported) {
+      return {
+        supported: false,
+        candidate: safeRelativePath(relativePath),
+        output: null
+      };
+    }
+
+    const read = await readFileBuffer(file.path, {
+      expectedSize: file.size,
+      maxBytes: RESOURCE_POLICY.imageBufferBytes,
+      ...coreOptions(jobId)
+    });
     throwIfCancelled(jobId);
-    const output = supported.has(ext) ? await processor(input, relativePath) : input;
+    const output = await processor(read.buffer, relativePath);
     throwIfCancelled(jobId);
+    if (!Buffer.isBuffer(output)) throw new Error('Image processor returned an invalid output buffer.');
+    if (output.length > RESOURCE_POLICY.imageBufferBytes) {
+      const error = new RangeError('Processed image exceeds the configured image output memory budget.');
+      error.code = 'IMAGE_OUTPUT_LIMIT';
+      throw error;
+    }
     sendProgress(jobId, {
-      event: 'file',
-      file: relativePath,
-      type: supported.has(ext) ? 'process' : 'skip',
-      originalSize: input.length,
-      compressedSize: output.length
+      event: 'file', file: relativePath, type: 'process',
+      originalSize: read.bytes, compressedSize: output.length
     });
     return {
+      supported: true,
       output,
-      candidate: safeRelativePath(renamer && supported.has(ext) ? renamer(relativePath, index) : relativePath)
+      candidate: safeRelativePath(renamer ? renamer(relativePath, index) : relativePath)
     };
   };
 
-  if (files.length === 1) {
-    try {
+  try {
+    const totalBytes = totalDeclaredBytes(files, RESOURCE_POLICY.coreBatchBytes);
+
+    if (files.length === 1) {
       const relativePath = paths[0];
+      const supported = SUPPORTED_IMAGES.has(path.extname(relativePath).toLowerCase());
+      if (!supported) {
+        const source = createVerifiedReadStream(files[0].path, {
+          expectedSize: files[0].size,
+          ...coreOptions(jobId),
+          onComplete: ({ bytes }) => sendProgress(jobId, {
+            event: 'file', file: relativePath, type: 'skip', originalSize: bytes, compressedSize: bytes
+          })
+        });
+        res.setHeader('Content-Disposition', `attachment; filename="${path.basename(relativePath)}"`);
+        res.setHeader('Content-Type', 'application/octet-stream');
+        await pipeline(source, res);
+        return;
+      }
+
       const result = await processOne(files[0], relativePath, 0);
-      const outName = result.candidate;
-      const ext = path.extname(outName).toLowerCase();
-      const mime = ext === '.webp' ? 'image/webp' : ext === '.png' ? 'image/png' : ext === '.avif' ? 'image/avif' : 'image/jpeg';
-      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(outName)}"`);
-      res.setHeader('Content-Type', mime);
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(result.candidate)}"`);
+      res.setHeader('Content-Type', mimeFor(result.candidate, true));
       endProgress(jobId, 'completed');
       return res.send(result.output);
-    } catch (err) {
-      if (err instanceof JobCancelledError) {
-        endProgress(jobId, 'cancelled');
-        return res.status(499).json({ error: err.message });
-      }
-      console.error('[Single Image Process Error]', err);
-      endProgress(jobId, 'failed');
-      return res.status(500).send('Processing failed');
     }
-  }
 
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="processed-${Date.now()}.zip"`);
-  const archive = archiver('zip', { zlib: { level: 9 } });
-  archive.on('error', err => {
-    console.error('[Archive Error]', err);
-    endProgress(jobId, 'failed');
-    if (!res.headersSent) res.status(500).json({ error: 'Archive failed' });
-  });
-  archive.pipe(res);
-
-  try {
     const usedNames = new Set();
-    for (let i = 0; i < files.length; i++) {
-      const result = await processOne(files[i], paths[i], i);
-      let finalPath = result.candidate;
+    const entries = files.map((file, index) => {
+      const relativePath = paths[index];
+      const supported = SUPPORTED_IMAGES.has(path.extname(relativePath).toLowerCase());
+      const candidate = safeRelativePath(supported && renamer ? renamer(relativePath, index) : relativePath);
+      let finalPath = candidate;
       let counter = 1;
-      while (usedNames.has(finalPath)) {
-        const p = path.posix.parse(result.candidate);
-        finalPath = safeRelativePath(path.posix.join(p.dir, `${p.name}-${counter}${p.ext}`));
+      while (usedNames.has(finalPath.toLocaleLowerCase('en-US'))) {
+        const parsed = path.posix.parse(candidate);
+        finalPath = safeRelativePath(path.posix.join(parsed.dir, `${parsed.name}-${counter}${parsed.ext}`));
         counter++;
       }
-      usedNames.add(finalPath);
-      archive.append(result.output, { name: finalPath });
-    }
-    endProgress(jobId, 'completed');
-    archive.finalize();
+      usedNames.add(finalPath.toLocaleLowerCase('en-US'));
+
+      if (!supported) {
+        return { name: finalPath, filePath: file.path, size: file.size, sourcePath: relativePath, transformed: false };
+      }
+      return {
+        name: finalPath,
+        size: file.size,
+        sourcePath: relativePath,
+        transformed: true,
+        open: async () => (await processOne(file, relativePath, index)).output
+      };
+    });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="processed-${Date.now()}.zip"`);
+    await writeZip(res, entries, {
+      level: 9,
+      maxBufferBytes: RESOURCE_POLICY.imageBufferBytes,
+      maxTotalBytes: totalBytes,
+      ...coreOptions(jobId),
+      onEntryComplete: ({ entry, outputBytes }) => {
+        if (entry.transformed) return;
+        sendProgress(jobId, {
+          event: 'file', file: entry.sourcePath, type: 'skip',
+          originalSize: entry.size, compressedSize: outputBytes
+        });
+      }
+    });
   } catch (err) {
-    if (err instanceof JobCancelledError) {
+    if (cancelled(err, jobId)) {
       endProgress(jobId, 'cancelled');
-      try { archive.abort(); } catch (_) {}
+      if (!res.headersSent) return res.status(499).json({ error: 'Processing cancelled.' });
       if (!res.writableEnded) res.end();
       return;
     }
-    console.error('[Bulk Image Process Error]', err);
+    console.error('[Image Process Error]', err);
     endProgress(jobId, 'failed');
-    try { archive.abort(); } catch (_) {}
+    if (!res.headersSent) {
+      if (err?.code === 'FILE_SIZE_LIMIT' || err?.code === 'IMAGE_OUTPUT_LIMIT' || err?.code === 'ARCHIVE_BUFFER_LIMIT') {
+        return res.status(413).json({ error: 'An image exceeds the configured image-processing memory budget.' });
+      }
+      if (err?.code === 'CORE_BATCH_LIMIT') return res.status(413).json({ error: 'The selected image batch exceeds the core resource budget.' });
+      if (['NON_PORTABLE_ARCHIVE_PATH', 'PORTABLE_ARCHIVE_COLLISION', 'ARCHIVE_PATH_TOO_LONG'].includes(err?.code)) return res.status(400).json({ error: err.message });
+      return res.status(500).json({ error: 'Image processing failed.' });
+    }
     if (!res.writableEnded) res.end();
   }
 }
 
 router.post('/resize', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, (req, res) => {
   const { width, height, fit, background, grayscale, blur, negate, sharpen, renamePattern } = req.body;
-  handleProcessResponse(req, res, req.files || [], req.safePaths || [], buffer =>
+  return handleProcessResponse(req, res, req.files || [], req.safePaths || [], buffer =>
     resizeImage(buffer, { width, height, fit, background, grayscale, blur, negate, sharpen }),
   (relativePath, index) => {
     if (!renamePattern) return relativePath;
@@ -116,7 +190,7 @@ router.post('/resize', prepareJob, upload.array('files'), enforceTotalSize, vali
 
 router.post('/convert', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, (req, res) => {
   const { quality, targetFormat, grayscale, blur, negate, sharpen, renamePattern } = req.body;
-  handleProcessResponse(req, res, req.files || [], req.safePaths || [], buffer =>
+  return handleProcessResponse(req, res, req.files || [], req.safePaths || [], buffer =>
     convertImage(buffer, { quality, format: targetFormat, grayscale, blur, negate, sharpen }),
   (relativePath, index) => {
     const ext = String(targetFormat || 'webp').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'webp';

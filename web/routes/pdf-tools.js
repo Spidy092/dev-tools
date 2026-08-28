@@ -1,19 +1,43 @@
 const express = require('express');
 const router = express.Router();
-const archiver = require('archiver');
 const path = require('path');
-const fs = require('fs');
+const { pipeline } = require('stream/promises');
 const { upload, cleanupJob, enforceTotalSize } = require('../multer-setup');
 const { validateUploadedFiles } = require('../security');
-const { compressPDF } = require('../../core/pdfProcessor');
-const { prepareJob, sendProgress, endProgress, throwIfCancelled, JobCancelledError } = require('./progress');
+const { compressPDF, PdfProcessingError } = require('../../core/pdfProcessor');
+const { createVerifiedReadStream } = require('../../core/processingEngine');
+const { writeZip } = require('../../core/archiveEngine');
+const { RESOURCE_POLICY, totalDeclaredBytes } = require('../../core/resourcePolicy');
+const {
+  prepareJob,
+  sendProgress,
+  endProgress,
+  throwIfCancelled,
+  getJobSignal,
+  JobCancelledError
+} = require('./progress');
 
-router.post('/compress', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, (req, res) => {
-  const { pdfLevel } = req.body;
+const PDF_LEVELS = new Set(['/screen', '/ebook', '/printer', '/prepress']);
+
+function coreOptions(jobId) {
+  return { signal: getJobSignal(jobId), checkCancelled: () => throwIfCancelled(jobId) };
+}
+
+function cancelled(error, jobId) {
+  if (error instanceof JobCancelledError || error?.code === 'PROCESSING_ABORTED') return true;
+  try { throwIfCancelled(jobId); } catch (err) { return err instanceof JobCancelledError; }
+  return false;
+}
+
+function fallbackAllowed(error) {
+  return error instanceof PdfProcessingError && ['PDF_GHOSTSCRIPT_FAILED', 'PDF_TIMEOUT'].includes(error.code);
+}
+
+router.post('/compress', prepareJob, upload.array('files'), enforceTotalSize, validateUploadedFiles, async (req, res) => {
+  const requestedLevel = String(req.body.pdfLevel || '/screen');
   const files = req.files || [];
   const paths = req.safePaths || [];
   const jobId = req.jobId;
-
   const onEnd = () => cleanupJob(jobId);
   res.on('finish', onEnd);
   res.on('close', onEnd);
@@ -22,91 +46,129 @@ router.post('/compress', prepareJob, upload.array('files'), enforceTotalSize, va
     endProgress(jobId, 'failed');
     return res.status(400).json({ error: 'No files uploaded.' });
   }
-
-  if (files.length === 1) {
-    (async () => {
-      try {
-        throwIfCancelled(jobId);
-        const file = files[0];
-        const relativePath = paths[0];
-        if (path.extname(relativePath).toLowerCase() !== '.pdf') {
-          endProgress(jobId, 'failed');
-          return res.status(415).json({ error: 'PDF Compressor accepts PDF files only.' });
-        }
-        const compressedPath = file.path + '-compressed.pdf';
-        const result = await compressPDF(file.path, compressedPath, pdfLevel || '/screen');
-        throwIfCancelled(jobId);
-        sendProgress(jobId, { event: 'file', file: relativePath, type: 'compress', originalSize: result.originalSize, compressedSize: result.compressedSize, reduction: result.reduction });
-        endProgress(jobId, 'completed');
-        res.setHeader('Content-Disposition', `attachment; filename="${path.basename(relativePath)}"`);
-        res.setHeader('Content-Type', 'application/pdf');
-        fs.createReadStream(result.outputPath).pipe(res);
-      } catch (err) {
-        if (err instanceof JobCancelledError) {
-          endProgress(jobId, 'cancelled');
-          if (!res.headersSent) res.status(499).json({ error: err.message });
-          else res.end();
-          return;
-        }
-        console.error('[Single PDF Error]', err);
-        endProgress(jobId, 'failed');
-        if (!res.headersSent) res.status(500).send('Compression failed');
-      }
-    })();
-    return;
+  if (!PDF_LEVELS.has(requestedLevel)) {
+    endProgress(jobId, 'failed');
+    return res.status(400).json({ error: 'Unsupported PDF compression level.' });
   }
 
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="compressed-pdfs-${Date.now()}.zip"`);
-  const archive = archiver('zip', { zlib: { level: 9 } });
-  archive.on('error', err => {
-    console.error('[Archive Error]', err);
-    endProgress(jobId, 'failed');
-    if (!res.headersSent) res.status(500).json({ error: 'Archive failed' });
-  });
-  archive.pipe(res);
+  try {
+    const totalBytes = totalDeclaredBytes(files, RESOURCE_POLICY.coreBatchBytes);
 
-  (async () => {
-    try {
-      for (let i = 0; i < files.length; i++) {
-        throwIfCancelled(jobId);
-        const file = files[i];
-        const relativePath = paths[i];
-        if (path.extname(relativePath).toLowerCase() === '.pdf') {
+    if (files.length === 1) {
+      const file = files[0];
+      const relativePath = paths[0];
+      if (path.extname(relativePath).toLowerCase() !== '.pdf') {
+        endProgress(jobId, 'failed');
+        return res.status(415).json({ error: 'PDF Compressor accepts PDF files only.' });
+      }
+
+      const compressedPath = file.path + '-compressed.pdf';
+      const result = await compressPDF(file.path, compressedPath, requestedLevel, {
+        expectedSize: file.size,
+        maxBytes: RESOURCE_POLICY.coreBatchBytes,
+        ...coreOptions(jobId)
+      });
+      const source = createVerifiedReadStream(result.outputPath, {
+        expectedSize: result.compressedSize,
+        maxBytes: RESOURCE_POLICY.coreBatchBytes,
+        ...coreOptions(jobId),
+        onComplete: () => sendProgress(jobId, {
+          event: 'file', file: relativePath, type: 'compress',
+          originalSize: result.originalSize, compressedSize: result.compressedSize, reduction: result.reduction
+        })
+      });
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(relativePath)}"`);
+      res.setHeader('Content-Type', 'application/pdf');
+      await pipeline(source, res);
+      return;
+    }
+
+    const entries = files.map((file, index) => {
+      const relativePath = paths[index];
+      const isPdf = path.extname(relativePath).toLowerCase() === '.pdf';
+      if (!isPdf) {
+        return {
+          name: relativePath,
+          filePath: file.path,
+          size: file.size,
+          sourcePath: relativePath,
+          passthrough: true
+        };
+      }
+
+      return {
+        name: relativePath,
+        size: file.size,
+        sourcePath: relativePath,
+        passthrough: false,
+        open: async () => {
           const compressedPath = file.path + '-compressed.pdf';
           try {
-            const result = await compressPDF(file.path, compressedPath, pdfLevel || '/screen');
-            throwIfCancelled(jobId);
-            sendProgress(jobId, { event: 'file', file: relativePath, type: 'compress', originalSize: result.originalSize, compressedSize: result.compressedSize, reduction: result.reduction });
-            archive.append(fs.createReadStream(result.outputPath), { name: relativePath });
-          } catch (err) {
-            if (err instanceof JobCancelledError) throw err;
-            console.warn(`[PDF fallback] ${relativePath}:`, err.message);
-            const stat = await fs.promises.stat(file.path);
-            sendProgress(jobId, { event: 'file', file: relativePath, type: 'skip', originalSize: stat.size, compressedSize: stat.size });
-            archive.append(fs.createReadStream(file.path), { name: relativePath });
+            const result = await compressPDF(file.path, compressedPath, requestedLevel, {
+              expectedSize: file.size,
+              maxBytes: RESOURCE_POLICY.coreBatchBytes,
+              ...coreOptions(jobId)
+            });
+            return createVerifiedReadStream(result.outputPath, {
+              expectedSize: result.compressedSize,
+              maxBytes: RESOURCE_POLICY.coreBatchBytes,
+              ...coreOptions(jobId),
+              onComplete: () => sendProgress(jobId, {
+                event: 'file', file: relativePath, type: 'compress',
+                originalSize: result.originalSize, compressedSize: result.compressedSize, reduction: result.reduction
+              })
+            });
+          } catch (error) {
+            if (cancelled(error, jobId) || !fallbackAllowed(error)) throw error;
+            console.warn(`[PDF fallback] ${relativePath}: ${error.code}`);
+            return createVerifiedReadStream(file.path, {
+              expectedSize: file.size,
+              maxBytes: RESOURCE_POLICY.coreBatchBytes,
+              ...coreOptions(jobId),
+              onComplete: ({ bytes }) => sendProgress(jobId, {
+                event: 'file', file: relativePath, type: 'skip',
+                originalSize: bytes, compressedSize: bytes, reduction: 0,
+                reason: error.code
+              })
+            });
           }
-        } else {
-          const stat = await fs.promises.stat(file.path);
-          sendProgress(jobId, { event: 'file', file: relativePath, type: 'skip', originalSize: stat.size, compressedSize: stat.size });
-          archive.append(fs.createReadStream(file.path), { name: relativePath });
         }
+      };
+    });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="compressed-pdfs-${Date.now()}.zip"`);
+    await writeZip(res, entries, {
+      level: 9,
+      maxFileBytes: RESOURCE_POLICY.coreBatchBytes,
+      maxTotalBytes: totalBytes,
+      ...coreOptions(jobId),
+      onEntryComplete: ({ entry, outputBytes }) => {
+        if (!entry.passthrough) return;
+        sendProgress(jobId, {
+          event: 'file', file: entry.sourcePath, type: 'skip',
+          originalSize: entry.size, compressedSize: outputBytes, reduction: 0
+        });
       }
-      endProgress(jobId, 'completed');
-      archive.finalize();
-    } catch (err) {
-      if (err instanceof JobCancelledError) {
-        endProgress(jobId, 'cancelled');
-        try { archive.abort(); } catch (_) {}
-        if (!res.writableEnded) res.end();
-        return;
-      }
-      console.error('[Bulk PDF Error]', err);
-      endProgress(jobId, 'failed');
-      try { archive.abort(); } catch (_) {}
+    });
+  } catch (err) {
+    if (cancelled(err, jobId)) {
+      endProgress(jobId, 'cancelled');
+      if (!res.headersSent) return res.status(499).json({ error: 'Processing cancelled.' });
       if (!res.writableEnded) res.end();
+      return;
     }
-  })();
+    console.error('[PDF Error]', err);
+    endProgress(jobId, 'failed');
+    if (!res.headersSent) {
+      if (err?.code === 'CORE_BATCH_LIMIT' || err?.code === 'FILE_SIZE_LIMIT') return res.status(413).json({ error: 'The selected PDF batch exceeds the core resource budget.' });
+      if (err?.code === 'PDF_SPAWN_FAILED') return res.status(503).json({ error: 'Ghostscript is unavailable on this DevToolkit instance.' });
+      if (err?.code === 'PDF_TIMEOUT') return res.status(504).json({ error: 'PDF compression timed out.' });
+      if (['NON_PORTABLE_ARCHIVE_PATH', 'PORTABLE_ARCHIVE_COLLISION', 'ARCHIVE_PATH_TOO_LONG'].includes(err?.code)) return res.status(400).json({ error: err.message });
+      return res.status(500).json({ error: 'PDF compression failed.' });
+    }
+    if (!res.writableEnded) res.end();
+  }
 });
 
 module.exports = router;
