@@ -13,7 +13,7 @@
     "check": "npm test"
   },
   "dependencies": {
-    "archiver": "^7.0.1",
+    "archiver": "^8.0.0",
     "chalk": "^6.0.0",
     "clean-css": "^5.3.3",
     "commander": "^15.0.0",
