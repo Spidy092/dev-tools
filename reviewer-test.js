@@ -8,5 +8,5 @@ export function average(numbers) {
     total += number;
   }
 
-  return total / numbers.length; }}
+  return total / numbers.length;
 }
